@@ -68,33 +68,20 @@
         </p>
       </div>
 
-      <!-- Demo credentials info -->
-      <div class="demo-info">
-        <h3>Demo Credentials</h3>
-        <div class="demo-credentials">
-          <div class="credential">
-            <strong>Admin:</strong>
-            <span>admin@waterlily.com / admin123</span>
-          </div>
-          <div class="credential">
-            <strong>User:</strong>
-            <span>user@waterlily.com / user123</span>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script>
 import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 
 export default {
   name: 'Login',
   setup() {
     const router = useRouter()
+    const route = useRoute()
     const { login, register, isLoading, isAuthenticated, isAdmin } = useAuth()
 
     const isRegister = ref(false)
@@ -105,9 +92,18 @@ export default {
       password: ''
     })
 
-    // Redirect if already logged in
+    const getPostLoginPath = () => {
+      const redirect = route.query.redirect
+      if (typeof redirect === 'string' && redirect.startsWith('/') &&
+        !redirect.startsWith('//') && redirect !== '/login') {
+        return redirect
+      }
+
+      return isAdmin.value ? '/admin' : '/'
+    }
+
     if (isAuthenticated.value) {
-      router.push(isAdmin.value ? '/admin' : '/')
+      router.replace(getPostLoginPath())
     }
 
     const toggleForm = () => {
@@ -131,13 +127,7 @@ export default {
           window.showToast(isRegister.value ? 'Account created successfully!' : 'Welcome back!', 'success')
         }
         
-        // Redirect based on role
-        const { isAdmin } = useAuth()
-        if (isAdmin.value) {
-          router.push('/admin')
-        } else {
-          router.push('/')
-        }
+        router.replace(getPostLoginPath())
       } else {
         errorMessage.value = result.error
       }
@@ -273,37 +263,6 @@ export default {
 
 .toggle-form a:hover {
   text-decoration: underline;
-}
-
-.demo-info {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-}
-
-.demo-info h3 {
-  font-size: 0.85rem;
-  color: #666;
-  margin-bottom: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.demo-credentials {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.credential {
-  font-size: 0.85rem;
-  color: #444;
-}
-
-.credential strong {
-  color: #2d5a27;
-  margin-right: 0.5rem;
 }
 
 @media (max-width: 480px) {

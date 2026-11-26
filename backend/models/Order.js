@@ -3,12 +3,12 @@ import mongoose from 'mongoose';
 const orderItemSchema = new mongoose.Schema({
   product: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
+    ref: 'Product'
   },
   name: { type: String, required: true },
   price: { type: Number, required: true },
   quantity: { type: Number, required: true, default: 1 },
+  image: { type: String, default: '' },
   variantSize: { type: String },
   variantColor: { type: String }
 });
@@ -34,7 +34,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cod', 'gcash', 'bank_transfer', 'credit_card'],
+    enum: ['cod'],
     default: 'cod'
   },
   paymentStatus: {
@@ -72,14 +72,15 @@ const orderSchema = new mongoose.Schema({
   }
 });
 
-// Generate order number
-orderSchema.pre('save', async function(next) {
+orderSchema.pre('validate', async function() {
   if (!this.orderNumber) {
     const count = await mongoose.model('Order').countDocuments();
     this.orderNumber = `WL-${Date.now().toString(36).toUpperCase()}-${(count + 1).toString().padStart(4, '0')}`;
   }
+});
+
+orderSchema.pre('save', function() {
   this.updatedAt = Date.now();
-  next();
 });
 
 const Order = mongoose.model('Order', orderSchema);

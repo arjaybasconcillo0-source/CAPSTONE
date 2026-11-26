@@ -40,7 +40,7 @@
                     name="category"
                     :value="category.slug"
                     v-model="filters.category"
-                    @change="applyFilters"
+                    @change="handleCategoryChange"
                   >
                   <span class="checkbox-custom"></span>
                   <span class="filter-label">{{ category.name }}</span>
@@ -51,32 +51,10 @@
                     name="category"
                     value=""
                     v-model="filters.category"
-                    @change="applyFilters"
+                    @change="handleCategoryChange"
                   >
                   <span class="checkbox-custom"></span>
                   <span class="filter-label">All Categories</span>
-                </label>
-              </div>
-            </div>
-
-            <!-- Price Range Filter -->
-            <div class="filter-group">
-              <h3 class="filter-title">Price Range</h3>
-              <div class="filter-options">
-                <label 
-                  v-for="range in priceRanges" 
-                  :key="range.value"
-                  class="filter-option"
-                >
-                  <input
-                    type="radio"
-                    name="priceRange"
-                    :value="range.value"
-                    v-model="filters.priceRange"
-                    @change="applyFilters"
-                  >
-                  <span class="checkbox-custom"></span>
-                  <span class="filter-label">{{ range.label }}</span>
                 </label>
               </div>
             </div>
@@ -86,7 +64,7 @@
               <h3 class="filter-title">Sort By</h3>
               <select 
                 v-model="filters.sortBy" 
-                @change="applyFilters"
+                @change="handleSortChange"
                 class="sort-select"
               >
                 <option value="featured">Featured</option>
@@ -121,7 +99,7 @@
             
             <select 
               v-model="filters.sortBy" 
-              @change="applyFilters"
+              @change="handleSortChange"
               class="mobile-sort-select"
               aria-label="Sort products"
             >
@@ -136,7 +114,7 @@
           <!-- Results Info -->
           <div class="results-info">
             <p class="results-count">
-              Showing {{ filteredProducts.length }} of {{ totalProducts }} products
+              Showing {{ visibleProducts.length }} of {{ filteredProducts.length }} products
               <span v-if="searchQuery" class="search-query">
                 for \"{{ searchQuery }}\"
               </span>
@@ -152,9 +130,11 @@
           <div v-else-if="filteredProducts.length === 0" class="no-results">
             <div class="no-results-content">
               <div class="no-results-icon">🔍</div>
-              <h3>No products found</h3>
-              <p>Try adjusting your filters or search terms</p>
-              <button @click="clearFilters" class="btn btn-primary">
+              <h3>{{ totalProducts === 0 ? 'No products added yet' : 'No products found' }}</h3>
+              <p v-if="productLoadError">{{ productLoadError }}</p>
+              <p v-else-if="totalProducts === 0">Add products from Admin to display them here.</p>
+              <p v-else>Try adjusting your filters or search terms.</p>
+              <button v-if="totalProducts > 0" @click="clearFilters" class="btn btn-primary">
                 Clear Filters
               </button>
             </div>
@@ -163,7 +143,7 @@
           <!-- Products Grid -->
           <ProductGrid 
             v-else
-            :products="filteredProducts"
+            :products="visibleProducts"
             :columns="4"
             class="shop-grid"
           />
@@ -195,7 +175,7 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router' 
-import { products, categories, searchProducts, getProductsByCategory } from '../data/products.js'
+import { categories } from '../data/products.js'
 import { useProducts } from '../composables/useProducts.js'
 import ProductGrid from '../components/ProductGrid.vue'
 import ProductSkeleton from '../components/ProductSkeleton.vue'
@@ -228,7 +208,7 @@ export default {
   setup() {
     const route = useRoute()
     const router = useRouter()
-    const { fetchProducts: fetchApiProducts } = useProducts()
+    const { fetchProducts: fetchApiProducts, error: productLoadError } = useProducts()
     
     // State
     const allProducts = ref([])
@@ -237,30 +217,23 @@ export default {
     const isLoadingMore = ref(false)
     const showMobileFilters = ref(false)
     const displayLimit = ref(12)
-    const useStaticData = ref(false)
     
     // Filters
     const filters = ref({
       category: '',
-      priceRange: '',
       sortBy: 'featured'
     })
     
     const searchQuery = ref('')
 
-    // Price ranges for filtering
-    const priceRanges = ref([
-      { value: '', label: 'All Prices' },
-      { value: '0-1000', label: 'Under ₱1,000' },
-      { value: '1000-2000', label: '₱1,000 - ₱2,000' },
-      { value: '2000-3000', label: '₱2,000 - ₱3,000' },
-      { value: '3000-5000', label: '₱3,000 - ₱5,000' },
-      { value: '5000+', label: 'Over ₱5,000' }
-    ])
-
     // Computed
     const totalProducts = computed(() => allProducts.value.length)
-    const hasMoreProducts = computed(() => filteredProducts.value.length > displayLimit.value)
+    const visibleProducts = computed(
+      () => filteredProducts.value.slice(0, displayLimit.value)
+    )
+    const hasMoreProducts = computed(
+      () => filteredProducts.value.length > displayLimit.value
+    )
     
     const pageTitle = computed(() => {
       if (searchQuery.value) {
@@ -278,25 +251,11 @@ export default {
       try {
         isLoading.value = true
         
-        // Try to fetch from API first
-        try {
-          const apiProducts = await fetchApiProducts()
-          if (apiProducts && apiProducts.length > 0) {
-            // Normalize API products (add 'id' alias for '_id')
-            allProducts.value = apiProducts.map(p => ({
-              ...p,
-              id: p._id || p.id
-            }))
-            useStaticData.value = false
-          } else {
-            throw new Error('No products from API')
-          }
-        } catch (apiError) {
-          console.log('Using static product data (API unavailable)')
-          allProducts.value = [...products]
-          useStaticData.value = true
-        }
-        
+        const apiProducts = await fetchApiProducts()
+        allProducts.value = apiProducts.map(product => ({
+          ...product,
+          id: product._id || product.id
+        }))
         applyFilters()
         
       } catch (error) {
@@ -311,23 +270,16 @@ export default {
       
       // Apply search filter
       if (searchQuery.value) {
-        result = searchProducts(searchQuery.value)
+        const query = searchQuery.value.toLowerCase()
+        result = result.filter(product =>
+          [product.name, product.description, ...(product.tags || [])]
+            .some(value => String(value || '').toLowerCase().includes(query))
+        )
       }
       
       // Apply category filter
       if (filters.value.category) {
         result = result.filter(product => product.category === filters.value.category)
-      }
-      
-      // Apply price range filter
-      if (filters.value.priceRange) {
-        const [min, max] = filters.value.priceRange.includes('+') 
-          ? [parseInt(filters.value.priceRange.replace('+', '')), Infinity]
-          : filters.value.priceRange.split('-').map(Number)
-          
-        result = result.filter(product => 
-          product.price >= min && (max === Infinity || product.price <= max)
-        )
       }
       
       // Apply sorting
@@ -339,8 +291,9 @@ export default {
           result.sort((a, b) => b.price - a.price)
           break
         case 'newest':
-          // Assuming newer products have higher IDs
-          result.sort((a, b) => b.id - a.id)
+          result.sort((a, b) =>
+            new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          )
           break
         case 'rating':
           result.sort((a, b) => b.rating - a.rating)
@@ -349,19 +302,30 @@ export default {
         default:
           // Featured items (best sellers) first, then by ID
           result.sort((a, b) => {
-            const aFeatured = a.tags.includes('best-seller') ? 1 : 0
-            const bFeatured = b.tags.includes('best-seller') ? 1 : 0
+            const aFeatured = (a.tags || []).includes('best-seller') ? 1 : 0
+            const bFeatured = (b.tags || []).includes('best-seller') ? 1 : 0
             if (aFeatured !== bFeatured) return bFeatured - aFeatured
-            return a.id - b.id
+            return String(a.name).localeCompare(String(b.name))
           })
           break
       }
       
-      // Update filtered products (limited for display)
-      filteredProducts.value = result.slice(0, displayLimit.value)
+      filteredProducts.value = result
       
       // Update URL to reflect current filters
       updateURL()
+    }
+
+    const handleCategoryChange = (event) => {
+      filters.value.category = event.target.value
+      displayLimit.value = 12
+      applyFilters()
+    }
+
+    const handleSortChange = (event) => {
+      filters.value.sortBy = event.target.value
+      displayLimit.value = 12
+      applyFilters()
     }
     
     const updateURL = () => {
@@ -369,7 +333,6 @@ export default {
       
       if (searchQuery.value) query.search = searchQuery.value
       if (filters.value.category) query.category = filters.value.category
-      if (filters.value.priceRange) query.price = filters.value.priceRange
       if (filters.value.sortBy !== 'featured') query.sort = filters.value.sortBy
       
       router.replace({ query })
@@ -378,7 +341,6 @@ export default {
     const clearFilters = () => {
       filters.value = {
         category: '',
-        priceRange: '',
         sortBy: 'featured'
       }
       searchQuery.value = ''
@@ -404,7 +366,6 @@ export default {
       
       if (query.search) searchQuery.value = query.search
       if (query.category) filters.value.category = query.category
-      if (query.price) filters.value.priceRange = query.price
       if (query.sort) filters.value.sortBy = query.sort
     }
 
@@ -422,13 +383,14 @@ export default {
     return {
       // Data
       filteredProducts,
+      visibleProducts,
       isLoading,
       isLoadingMore,
       showMobileFilters,
       filters,
       searchQuery,
+      productLoadError,
       categories,
-      priceRanges,
       
       // Computed
       totalProducts,
@@ -437,6 +399,8 @@ export default {
       
       // Methods
       applyFilters,
+      handleCategoryChange,
+      handleSortChange,
       clearFilters,
       loadMore
     }

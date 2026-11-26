@@ -120,7 +120,9 @@
 
             <!-- Checkout Button -->
             <router-link 
-              to="/checkout" 
+              :to="isAuthenticated
+                ? { name: 'Checkout' }
+                : { name: 'Login', query: { redirect: '/checkout' } }"
               class="checkout-btn btn btn-primary btn-lg"
             >
               Proceed to Checkout
@@ -147,7 +149,7 @@
       </div>
 
       <!-- Recently Viewed / Recommended Products -->
-      <section v-if="cartCount > 0" class="recommended-products">
+      <section v-if="cartCount > 0 && recommendedProducts.length > 0" class="recommended-products">
         <h2 class="section-title">You Might Also Like</h2>
         <ProductGrid 
           :products="recommendedProducts" 
@@ -161,7 +163,8 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { useCart } from '../composables/useCart.js'
-import { getFeaturedProducts } from '../data/products.js'
+import { useAuth } from '../composables/useAuth.js'
+import { useProducts } from '../composables/useProducts.js'
 import CartItem from '../components/CartItem.vue'
 import ProductGrid from '../components/ProductGrid.vue'
 
@@ -235,6 +238,8 @@ export default {
     RefreshIcon
   },
   setup() {
+    const { isAuthenticated } = useAuth()
+    const { fetchProducts } = useProducts()
     const {
       cartItemsWithDetails,
       cartCount,
@@ -330,9 +335,15 @@ export default {
     }
 
     // Load recommended products
-    const loadRecommendedProducts = () => {
-      // Get some featured products as recommendations
-      recommendedProducts.value = getFeaturedProducts().slice(0, 4)
+    const loadRecommendedProducts = async () => {
+      const availableProducts = await fetchProducts()
+      const cartProductIds = new Set(
+        cartItemsWithDetails.value.map(item => String(item.product._id))
+      )
+      recommendedProducts.value = availableProducts
+        .filter(product => !cartProductIds.has(String(product._id)))
+        .slice(0, 4)
+        .map(product => ({ ...product, id: product._id || product.id }))
     }
 
     onMounted(() => {
@@ -343,6 +354,7 @@ export default {
       // Cart
       cartItemsWithDetails,
       cartCount,
+      isAuthenticated,
       cartSubtotal,
       cartTotal,
       shippingFee,

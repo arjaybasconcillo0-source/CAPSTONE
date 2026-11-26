@@ -10,6 +10,11 @@
       </button>
     </div>
 
+    <div v-if="inventoryError" class="error-state" role="alert">
+      <span>{{ inventoryError }}</span>
+      <button type="button" @click="fetchInventory">Try again</button>
+    </div>
+
     <!-- Quick Stats -->
     <div class="stats-row">
       <div class="stat-card">
@@ -225,9 +230,10 @@ export default {
   components: { RefreshIcon, PackageIcon, InventoryIcon, AlertIcon, EmptyIcon, EditIcon },
   setup() {
     const { authFetch } = useAuth()
-    const { products, fetchProducts, updateProduct } = useProducts()
+    const { products, updateProduct } = useProducts()
 
     const isLoading = ref(true)
+    const inventoryError = ref('')
     const categoryStats = ref([])
     const tableFilter = ref('all')
     const filteredTable = ref([])
@@ -255,20 +261,24 @@ export default {
 
     const fetchInventory = async () => {
       isLoading.value = true
+      inventoryError.value = ''
       try {
-        await fetchProducts()
-        
-        const response = await authFetch('http://localhost:5000/api/analytics/inventory')
-        if (response.ok) {
-          const data = await response.json()
-          categoryStats.value = data.categoryBreakdown || []
-        }
-        
+        const data = await authFetch('/analytics/inventory')
+        products.value = data.products || []
+        categoryStats.value = (data.inventoryByCategory || []).map(category => ({
+          category: category._id,
+          productCount: category.totalProducts,
+          totalStock: category.totalStock,
+          totalValue: category.totalValue || 0,
+          avgPrice: category.avgPrice || 0
+        }))
         filterTable()
       } catch (error) {
         console.error('Error fetching inventory:', error)
+        inventoryError.value = 'Inventory data could not be loaded. Please try again.'
+      } finally {
+        isLoading.value = false
       }
-      isLoading.value = false
     }
 
     const filterTable = () => {
@@ -329,7 +339,7 @@ export default {
     onMounted(fetchInventory)
 
     return {
-      isLoading, stats, categoryStats, lowStockProducts,
+      isLoading, inventoryError, stats, categoryStats, lowStockProducts,
       tableFilter, filteredTable,
       showStockModal, selectedProduct, newStock, isUpdating,
       fetchInventory, filterTable, getStockClass, getStatusText, getStockPercent,
@@ -354,6 +364,26 @@ export default {
 
 .header-subtitle { color: #64748b; }
 
+.error-state {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.error-state button {
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 6px;
+  background: #991b1b;
+  color: #fff;
+  cursor: pointer;
+}
 .btn-secondary {
   display: flex;
   align-items: center;

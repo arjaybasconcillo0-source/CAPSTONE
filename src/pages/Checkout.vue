@@ -110,6 +110,19 @@
                 </div>
                 
                 <div class="form-group">
+                  <label for="province" class="form-label">Province *</label>
+                  <input
+                    id="province"
+                    v-model="shippingInfo.province"
+                    type="text"
+                    class="form-input"
+                    required
+                    :class="{ 'error': errors.province }"
+                  >
+                  <span v-if="errors.province" class="error-message">{{ errors.province }}</span>
+                </div>
+
+                <div class="form-group">
                   <label for="postalCode" class="form-label">Postal Code *</label>
                   <input
                     id="postalCode"
@@ -147,40 +160,8 @@
               <h2 class="step-title">Payment Information</h2>
               
               <div class="payment-methods">
-                <h3>Choose Payment Method</h3>
+                <h3>Payment Method</h3>
                 <div class="payment-options">
-                  <label class="payment-option">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="card"
-                      v-model="paymentInfo.method"
-                    >
-                    <div class="payment-option-content">
-                      <div class="payment-icon">💳</div>
-                      <div class="payment-details">
-                        <span class="payment-title">Credit/Debit Card</span>
-                        <span class="payment-subtitle">Visa, Mastercard, etc.</span>
-                      </div>
-                    </div>
-                  </label>
-
-                  <label class="payment-option">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="bank"
-                      v-model="paymentInfo.method"
-                    >
-                    <div class="payment-option-content">
-                      <div class="payment-icon">🏦</div>
-                      <div class="payment-details">
-                        <span class="payment-title">Bank Transfer</span>
-                        <span class="payment-subtitle">Direct bank payment</span>
-                      </div>
-                    </div>
-                  </label>
-
                   <label class="payment-option">
                     <input
                       type="radio"
@@ -196,60 +177,6 @@
                       </div>
                     </div>
                   </label>
-                </div>
-              </div>
-
-              <!-- Card Payment Form (shown if card is selected) -->
-              <div v-if="paymentInfo.method === 'card'" class="card-payment-form">
-                <div class="form-group">
-                  <label for="cardNumber" class="form-label">Card Number *</label>
-                  <input
-                    id="cardNumber"
-                    v-model="paymentInfo.cardNumber"
-                    type="text"
-                    class="form-input"
-                    placeholder="1234 5678 9012 3456"
-                    maxlength="19"
-                    @input="formatCardNumber"
-                  >
-                </div>
-
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label for="expiryDate" class="form-label">Expiry Date *</label>
-                    <input
-                      id="expiryDate"
-                      v-model="paymentInfo.expiryDate"
-                      type="text"
-                      class="form-input"
-                      placeholder="MM/YY"
-                      maxlength="5"
-                      @input="formatExpiryDate"
-                    >
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="cvv" class="form-label">CVV *</label>
-                    <input
-                      id="cvv"
-                      v-model="paymentInfo.cvv"
-                      type="text"
-                      class="form-input"
-                      placeholder="123"
-                      maxlength="4"
-                    >
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label for="cardName" class="form-label">Cardholder Name *</label>
-                  <input
-                    id="cardName"
-                    v-model="paymentInfo.cardName"
-                    type="text"
-                    class="form-input"
-                    placeholder="Name as it appears on card"
-                  >
                 </div>
               </div>
 
@@ -299,14 +226,14 @@
                   <p>
                     {{ shippingInfo.firstName }} {{ shippingInfo.lastName }}<br>
                     {{ shippingInfo.address }}<br>
-                    {{ shippingInfo.city }}, {{ shippingInfo.postalCode }}<br>
+                    {{ shippingInfo.city }}, {{ shippingInfo.province }} {{ shippingInfo.postalCode }}<br>
                     {{ shippingInfo.phone }}
                   </p>
                 </div>
 
                 <div class="info-section">
                   <h4>Payment Method</h4>
-                  <p>{{ getPaymentMethodLabel() }}</p>
+                  <p>Cash on Delivery</p>
                 </div>
               </div>
 
@@ -386,7 +313,9 @@
     <OrderSuccessModal 
       v-if="showSuccessModal"
       :order-number="orderNumber"
+      :phone="shippingInfo.phone"
       @close="goToHome"
+      @track="trackOrder"
     />
   </div>
 </template>
@@ -395,6 +324,7 @@
 import { ref, computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCart } from '../composables/useCart.js'
+import { useAuth } from '../composables/useAuth.js'
 import OrderSuccessModal from '../components/OrderSuccessModal.vue'
 
 // Icons
@@ -441,6 +371,7 @@ export default {
   },
   setup() {
     const router = useRouter()
+    const { token } = useAuth()
     const {
       cartItemsWithDetails,
       cartCount,
@@ -465,28 +396,25 @@ export default {
       phone: '',
       address: '',
       city: '',
+      province: '',
       postalCode: '',
       notes: ''
     })
 
     const paymentInfo = reactive({
-      method: 'card',
-      cardNumber: '',
-      expiryDate: '',
-      cvv: '',
-      cardName: ''
+      method: 'cod'
     })
 
     const errors = reactive({})
 
     // Methods
     const validateCurrentStep = () => {
-      errors.value = {}
+      Object.keys(errors).forEach((field) => delete errors[field])
       let isValid = true
 
       if (currentStep.value === 1) {
         // Validate shipping information
-        const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'postalCode']
+        const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'province', 'postalCode']
         
         requiredFields.forEach(field => {
           if (!shippingInfo[field] || !shippingInfo[field].trim()) {
@@ -501,16 +429,7 @@ export default {
           isValid = false
         }
       } else if (currentStep.value === 2) {
-        // Validate payment information
-        if (!paymentInfo.method) {
-          isValid = false
-        }
-
-        if (paymentInfo.method === 'card') {
-          if (!paymentInfo.cardNumber || !paymentInfo.expiryDate || !paymentInfo.cvv || !paymentInfo.cardName) {
-            isValid = false
-          }
-        }
+        isValid = paymentInfo.method === 'cod'
       }
 
       return isValid
@@ -530,51 +449,48 @@ export default {
       }
     }
 
-    const formatCardNumber = (event) => {
-      let value = event.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '')
-      let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value
-      
-      if (formattedValue.length > 19) {
-        formattedValue = formattedValue.substring(0, 19)
-      }
-      
-      paymentInfo.cardNumber = formattedValue
-    }
-
-    const formatExpiryDate = (event) => {
-      let value = event.target.value.replace(/\D/g, '')
-      
-      if (value.length >= 2) {
-        value = value.substring(0, 2) + '/' + value.substring(2, 4)
-      }
-      
-      paymentInfo.expiryDate = value
-    }
-
-    const getPaymentMethodLabel = () => {
-      const labels = {
-        card: 'Credit/Debit Card',
-        bank: 'Bank Transfer',
-        cod: 'Cash on Delivery'
-      }
-      return labels[paymentInfo.method] || ''
-    }
-
-    const generateOrderNumber = () => {
-      return 'WL' + Date.now().toString().slice(-8) + Math.random().toString(36).substring(2, 4).toUpperCase()
-    }
-
     const handleSubmit = async () => {
       if (!validateCurrentStep()) return
 
       isSubmitting.value = true
 
       try {
-        // Simulate order processing
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        const response = await fetch('http://localhost:5000/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token.value}`
+          },
+          body: JSON.stringify({
+            items: cartItemsWithDetails.value.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              variantSize: item.variantSize,
+              variantColor: item.variantColor
+            })),
+            shippingAddress: {
+              fullName: `${shippingInfo.firstName} ${shippingInfo.lastName}`.trim(),
+              address: shippingInfo.address,
+              city: shippingInfo.city,
+              province: shippingInfo.province,
+              postalCode: shippingInfo.postalCode,
+              phone: shippingInfo.phone
+            },
+            paymentMethod: 'cod',
+            notes: shippingInfo.notes
+          })
+        })
+        const order = await response.json().catch(() => ({}))
 
-        // Generate order number
-        orderNumber.value = generateOrderNumber()
+        if (!response.ok) {
+          throw new Error(order.message === 'Server error'
+            ? 'The order service encountered an error. Please try again in a moment, or contact the store team if it continues.'
+            : order.message || 'Order could not be placed. Please try again.')
+        }
+        if (!order.orderNumber) {
+          throw new Error('The order was saved but no order number was returned. Please contact the store team.')
+        }
+        orderNumber.value = order.orderNumber
 
         // Clear cart
         clearCart()
@@ -586,7 +502,10 @@ export default {
         console.error('Order submission failed:', error)
         
         if (window.showToast) {
-          window.showToast('Order submission failed. Please try again.', 'error')
+          const message = error instanceof TypeError
+            ? 'The order service is unavailable. Your cart is safe; please try again when the service is back.'
+            : error.message || 'Order submission failed. Your cart is safe; please try again.'
+          window.showToast(message, 'error')
         }
       } finally {
         isSubmitting.value = false
@@ -596,6 +515,14 @@ export default {
     const goToHome = () => {
       showSuccessModal.value = false
       router.push('/')
+    }
+
+    const trackOrder = ({ orderNumber: number }) => {
+      showSuccessModal.value = false
+      router.push({
+        name: 'TrackOrder',
+        query: { orderNumber: number }
+      })
     }
 
     // Redirect if cart is empty
@@ -627,10 +554,8 @@ export default {
       nextStep,
       previousStep,
       handleSubmit,
-      formatCardNumber,
-      formatExpiryDate,
-      getPaymentMethodLabel,
-      goToHome
+      goToHome,
+      trackOrder
     }
   }
 }
@@ -864,7 +789,7 @@ export default {
 .review-item img {
   width: 60px;
   height: 60px;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: var(--radius-sm);
 }
 
@@ -960,7 +885,7 @@ export default {
 .mini-cart-item img {
   width: 40px;
   height: 40px;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: var(--radius-sm);
 }
 

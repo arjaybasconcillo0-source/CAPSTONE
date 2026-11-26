@@ -10,7 +10,7 @@
   >
     <ProductCard
       v-for="product in products"
-      :key="product.id"
+      :key="product._id || product.id"
       :product="product"
     />
   </div>

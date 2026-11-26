@@ -26,10 +26,6 @@
                 Shop Now
                 <ShopIcon />
               </router-link>
-              <router-link to="/shop?category=bags" class="btn btn-secondary btn-lg">
-                Explore Collections
-                <ArrowIcon />
-              </router-link>
             </div>
           </div>
         </div>
@@ -45,11 +41,8 @@
       <div class="container">
         <div class="section-header">
           <h2 class="section-title">Shop by Category</h2>
-          <p class="section-description">
-            From everyday essentials to decorative treasures, find the perfect handcrafted piece for your lifestyle
-          </p>
         </div>
-        
+
         <div class="categories-grid">
           <CategoryCard
             v-for="category in featuredCategories"
@@ -75,16 +68,49 @@
         </div>
 
         <ProductGrid 
-          v-else
+          v-else-if="bestSellers.length > 0"
           :products="bestSellers" 
           class="bestsellers-grid"
         />
+        <p v-else class="section-description">No products added yet. Check back soon.</p>
 
         <div class="section-actions">
           <router-link to="/shop" class="btn btn-ghost btn-lg">
             View All Products
             <ArrowIcon />
           </router-link>
+        </div>
+      </div>
+    </section>
+
+    <!-- Customer Feedback -->
+    <section
+      v-if="reviewSummary.count > 0"
+      class="customer-feedback-section"
+    >
+      <div class="container">
+        <div class="feedback-panel">
+          <div class="feedback-score">
+            <span class="feedback-score-label">Average product rating</span>
+            <strong>{{ reviewSummary.average.toFixed(1) }}<small>/5</small></strong>
+            <RatingStars :rating="reviewSummary.average" :size="20" />
+            <span class="feedback-review-count">
+              Based on {{ reviewSummary.count.toLocaleString() }} product reviews
+            </span>
+          </div>
+
+          <div class="feedback-copy">
+            <p class="feedback-eyebrow">Customer feedback</p>
+            <h2>Choose with confidence</h2>
+            <p>
+              Explore product ratings from shoppers and find a handcrafted piece
+              that fits your style.
+            </p>
+            <router-link to="/shop" class="feedback-link">
+              Browse customer-rated pieces
+              <ArrowIcon />
+            </router-link>
+          </div>
         </div>
       </div>
     </section>
@@ -184,10 +210,12 @@
 
 <script>
 import { ref, onMounted } from 'vue'
-import { getFeaturedProducts } from '../data/products.js'
+import handwovenBag from '../assets/handwoven-bag.png'
+import { useProducts } from '../composables/useProducts.js'
 import ProductGrid from '../components/ProductGrid.vue'
 import ProductSkeleton from '../components/ProductSkeleton.vue'
 import CategoryCard from '../components/CategoryCard.vue'
+import RatingStars from '../components/RatingStars.vue'
 
 // Simple Icons
 const ShopIcon = {
@@ -215,14 +243,17 @@ export default {
     ProductGrid,
     ProductSkeleton,
     CategoryCard,
+    RatingStars,
     ShopIcon,
     ArrowIcon
   },
   setup() {
     const bestSellers = ref([])
+    const reviewSummary = ref({ average: 0, count: 0 })
     const isLoading = ref(true)
     const email = ref('')
     const isSigningUp = ref(false)
+    const { fetchProducts } = useProducts()
 
     // Featured categories with images
     const featuredCategories = ref([
@@ -232,36 +263,58 @@ export default {
         slug: 'bags',
         description: 'Stylish and sustainable bags for every occasion',
         image: 'https://coopbiz.ph/wp-content/uploads/2023/10/370250153_628766599335130_8121335544811866514_n-removebg-preview-300x300.png',
-        productCount: 15
+        productCount: 0
       },
       {
         id: 2,
-        name: 'Baskets',
-        slug: 'baskets',
-        description: 'Functional storage solutions with natural beauty',
-        image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQnhrNu3FVl-G2bfkNAMmUMChdB47QZ_uIgZnGlcSGdjQ&s',
-        productCount: 22
+        name: 'Shoulder Bags',
+        slug: 'shoulder-bags',
+        description: 'Handwoven shoulder bags made with natural beauty',
+        image: handwovenBag,
+        productCount: 0
       },
-      {
-        id: 3,
-        name: 'Soaps & Decor',
-        slug: 'soaps-decor',
-        description: 'Elevate your space with artisanal touches',
-        image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSuwwUXoexhXlWjhZefdks5EV3ctCCl2r7rAxggrvBmMEQor6NXfcVmce0&s=10',
-        productCount: 18
-      },
-      
     ])
 
     const loadBestSellers = async () => {
       try {
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        bestSellers.value = getFeaturedProducts()
-        isLoading.value = false
+        const apiProducts = await fetchProducts()
+        const availableProducts = apiProducts.map(product => ({
+          ...product,
+          id: product._id || product.id
+        }))
+
+        featuredCategories.value = featuredCategories.value.map(category => ({
+          ...category,
+          productCount: availableProducts.filter(product => product.category === category.slug).length
+        }))
+        const ratingTotals = availableProducts.reduce((totals, product) => {
+          const count = Math.max(0, Number(product.reviewsCount) || 0)
+          const rating = Number(product.rating)
+
+          if (count > 0 && Number.isFinite(rating)) {
+            totals.weightedRating += rating * count
+            totals.count += count
+          }
+
+          return totals
+        }, { weightedRating: 0, count: 0 })
+        reviewSummary.value = {
+          average: ratingTotals.count
+            ? ratingTotals.weightedRating / ratingTotals.count
+            : 0,
+          count: ratingTotals.count
+        }
+        bestSellers.value = availableProducts
+          .sort((a, b) =>
+            Number((b.tags || []).includes('best-seller')) -
+            Number((a.tags || []).includes('best-seller'))
+          )
+          .slice(0, 8)
       } catch (error) {
         console.error('Failed to load best sellers:', error)
+        bestSellers.value = []
+        reviewSummary.value = { average: 0, count: 0 }
+      } finally {
         isLoading.value = false
       }
     }
@@ -309,6 +362,7 @@ export default {
 
     return {
       bestSellers,
+      reviewSummary,
       isLoading,
       featuredCategories,
       email,
@@ -419,6 +473,7 @@ export default {
 /* Sections */
 .categories-section,
 .bestsellers-section,
+.customer-feedback-section,
 .story-section,
 .newsletter-section {
   padding: var(--space-8) 0;
@@ -475,8 +530,94 @@ export default {
   margin-bottom: var(--space-6);
 }
 
+.bestsellers-grid :deep(.product-description) {
+  display: none;
+}
+
 .section-actions {
   text-align: center;
+}
+
+.customer-feedback-section {
+  padding: var(--space-8) 0;
+}
+
+.feedback-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 4rem);
+  padding: clamp(1.75rem, 5vw, 3.5rem);
+  border: 1px solid var(--green-100);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(125deg, #fff, #f3f8f4);
+  box-shadow: var(--shadow-md);
+}
+
+.feedback-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: clamp(1rem, 3vw, 2.5rem);
+  border-right: 1px solid var(--green-100);
+  text-align: center;
+}
+
+.feedback-score-label,
+.feedback-review-count {
+  color: var(--ink-medium);
+  font-size: var(--text-sm);
+}
+
+.feedback-score strong {
+  color: var(--green-800);
+  font-size: clamp(3rem, 6vw, 4.5rem);
+  line-height: 1;
+}
+
+.feedback-score strong small {
+  color: var(--ink-light);
+  font-size: var(--text-xl);
+  font-weight: 500;
+}
+
+.feedback-copy {
+  max-width: 620px;
+}
+
+.feedback-eyebrow {
+  margin-bottom: var(--space-2);
+  color: var(--green-700);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.feedback-copy h2 {
+  margin-bottom: var(--space-3);
+  color: var(--green-900);
+  font-size: var(--text-3xl);
+}
+
+.feedback-copy > p:not(.feedback-eyebrow) {
+  margin-bottom: var(--space-4);
+  color: var(--ink-medium);
+  line-height: var(--leading-relaxed);
+}
+
+.feedback-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--green-700);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.feedback-link:hover {
+  color: var(--green-900);
 }
 
 /* Our Story Section */
@@ -674,11 +815,27 @@ export default {
   .newsletter-section {
     padding: var(--space-6) 0;
   }
+
+  .feedback-panel {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+    padding: var(--space-5);
+  }
+
+  .feedback-score {
+    padding: 0 0 var(--space-5);
+    border-right: 0;
+    border-bottom: 1px solid var(--green-100);
+  }
+
+  .feedback-copy h2 {
+    font-size: var(--text-2xl);
+  }
   
   .section-title {
     font-size: var(--text-2xl);
   }
-  
+
   .story-title,
   .newsletter-title {
     font-size: var(--text-2xl);
@@ -705,7 +862,7 @@ export default {
   .hero-actions {
     flex-direction: column;
   }
-  
+
   .highlight-item {
     flex-direction: column;
     gap: var(--space-2);

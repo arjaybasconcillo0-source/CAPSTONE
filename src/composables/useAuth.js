@@ -49,6 +49,25 @@ const clearAuth = () => {
 // Initialize auth from localStorage
 loadAuthFromStorage()
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== 'waterlily-token' && event.key !== 'waterlily-user' && event.key !== null) {
+      return
+    }
+
+    try {
+      const storedToken = localStorage.getItem('waterlily-token')
+      const storedUser = localStorage.getItem('waterlily-user')
+      token.value = storedToken
+      user.value = storedToken && storedUser ? JSON.parse(storedUser) : null
+    } catch (err) {
+      console.error('Error synchronizing auth across tabs:', err)
+      token.value = null
+      user.value = null
+    }
+  })
+}
+
 // Computed properties
 const isAuthenticated = computed(() => !!token.value && !!user.value)
 const isAdmin = computed(() => user.value?.role === 'admin')

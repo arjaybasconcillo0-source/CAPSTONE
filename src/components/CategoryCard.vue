@@ -81,12 +81,9 @@ export default {
 .category-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #fff;
   transition: transform var(--transition-slow);
-}
-
-.category-card:hover .category-image img {
-  transform: scale(1.05);
 }
 
 .category-overlay {

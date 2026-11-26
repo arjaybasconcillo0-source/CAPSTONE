@@ -3,6 +3,7 @@ import {
   registerUser, 
   loginUser, 
   getUserProfile, 
+  changePassword,
   getAllUsers 
 } from '../controllers/authController.js';
 import { protect, admin } from '../middleware/auth.js';
@@ -15,6 +16,7 @@ router.post('/login', loginUser);
 
 // Protected routes
 router.get('/profile', protect, getUserProfile);
+router.patch('/change-password', protect, changePassword);
 
 // Admin routes
 router.get('/users', protect, admin, getAllUsers);

@@ -5,20 +5,35 @@
       <div class="header-left">
         <p class="header-subtitle">Detailed sales and revenue analytics</p>
       </div>
-      <div class="date-filter">
-        <select v-model="dateRange" @change="fetchAnalytics">
-          <option value="7">Last 7 Days</option>
-          <option value="30">Last 30 Days</option>
-          <option value="90">Last 90 Days</option>
-          <option value="180">Last 6 Months</option>
-          <option value="365">Last Year</option>
-        </select>
+      <div class="header-actions">
+        <button type="button" class="export-button csv" @click="downloadCSV" :disabled="isExporting">
+          <span aria-hidden="true">CSV</span>
+          Download CSV
+        </button>
+        <button type="button" class="export-button pdf" @click="downloadPDF" :disabled="isExporting">
+          <span aria-hidden="true">PDF</span>
+          Download PDF
+        </button>
+        <div class="date-filter">
+          <select v-model="dateRange" @change="fetchAnalytics" aria-label="Analytics date range">
+            <option value="7">Last 7 Days</option>
+            <option value="30">Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
+            <option value="180">Last 6 Months</option>
+            <option value="365">Last Year</option>
+          </select>
+        </div>
       </div>
     </div>
 
     <!-- Loading -->
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
+    </div>
+
+    <div v-else-if="analyticsError" class="analytics-error" role="alert">
+      <span>{{ analyticsError }}</span>
+      <button type="button" @click="fetchAnalytics">Try again</button>
     </div>
 
     <template v-else>
@@ -56,7 +71,9 @@
             <ConversionIcon />
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ salesData.conversionRate }}%</span>
+            <span class="stat-value">
+              {{ salesData.conversionRate == null ? '—' : `${salesData.conversionRate}%` }}
+            </span>
             <span class="stat-label">Conversion Rate</span>
           </div>
         </div>
@@ -107,7 +124,7 @@
                 />
               </svg>
               <div class="pie-center">
-                <span class="pie-total">{{ salesData.paymentMethods?.total || 0 }}</span>
+                <span class="pie-total">{{ salesData.paymentMethods?.cod || 0 }}</span>
                 <span class="pie-label">Orders</span>
               </div>
             </div>
@@ -184,7 +201,7 @@
       <!-- Revenue by Date -->
       <div class="daily-revenue-section">
         <div class="section-header">
-          <h3>Daily Revenue (Last 14 Days)</h3>
+          <h3>Daily Revenue (Selected Period)</h3>
         </div>
         <div class="daily-chart">
           <div class="line-chart">
@@ -232,12 +249,14 @@ export default {
     const { authFetch } = useAuth()
     
     const isLoading = ref(true)
+    const isExporting = ref(false)
+    const analyticsError = ref('')
     const dateRange = ref('180')
     const salesData = ref({
       totalRevenue: 0,
       totalOrders: 0,
       averageOrderValue: 0,
-      conversionRate: 0,
+      conversionRate: null,
       monthlySales: [],
       categoryRevenue: [],
       topProducts: [],
@@ -248,33 +267,25 @@ export default {
 
     const paymentSegments = computed(() => {
       const methods = salesData.value.paymentMethods || {}
-      const total = (methods.cod || 0) + (methods.gcash || 0)
-      if (total === 0) return []
+      const codCount = Number(methods.cod) || 0
+      if (codCount === 0) return []
 
-      const codPercent = (methods.cod / total) * 100
-      const gcashPercent = (methods.gcash / total) * 100
       const circumference = 2 * Math.PI * 40
 
       return [
         {
           color: '#f59e0b',
-          dashArray: `${(codPercent / 100) * circumference} ${circumference}`,
+          dashArray: `${circumference} ${circumference}`,
           offset: 0
-        },
-        {
-          color: '#3b82f6',
-          dashArray: `${(gcashPercent / 100) * circumference} ${circumference}`,
-          offset: -(codPercent / 100) * circumference
         }
       ]
     })
 
     const paymentMethodsList = computed(() => {
       const methods = salesData.value.paymentMethods || {}
-      const total = (methods.cod || 0) + (methods.gcash || 0)
+      const codCount = Number(methods.cod) || 0
       return [
-        { name: 'cod', label: 'Cash on Delivery', count: methods.cod || 0, color: '#f59e0b', percent: total ? Math.round((methods.cod / total) * 100) : 0 },
-        { name: 'gcash', label: 'GCash', count: methods.gcash || 0, color: '#3b82f6', percent: total ? Math.round((methods.gcash / total) * 100) : 0 }
+        { name: 'cod', label: 'Cash on Delivery', count: codCount, color: '#f59e0b', percent: codCount ? 100 : 0 }
       ]
     })
 
@@ -328,27 +339,15 @@ export default {
 
     const fetchAnalytics = async () => {
       isLoading.value = true
+      analyticsError.value = ''
       try {
-        const response = await authFetch(`http://localhost:5000/api/analytics/sales?days=${dateRange.value}`)
-        if (response.ok) {
-          const data = await response.json()
-          salesData.value = {
-            totalRevenue: data.totalRevenue || 0,
-            totalOrders: data.totalOrders || 0,
-            averageOrderValue: data.averageOrderValue || 0,
-            conversionRate: data.conversionRate || 4.2,
-            monthlySales: data.monthlySales || [],
-            categoryRevenue: data.categoryRevenue || [],
-            topProducts: data.topProducts || [],
-            orderStatusDistribution: data.orderStatusDistribution || [],
-            paymentMethods: data.paymentMethods || {},
-            dailyRevenue: data.dailyRevenue || []
-          }
-        }
+        salesData.value = await authFetch(`/analytics/sales?period=${dateRange.value}`)
       } catch (error) {
         console.error('Error fetching analytics:', error)
+        analyticsError.value = 'Sales analytics could not be loaded. Please try again.'
+      } finally {
+        isLoading.value = false
       }
-      isLoading.value = false
     }
 
     const formatNumber = (num) => {
@@ -373,13 +372,168 @@ export default {
 
     const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : ''
 
+    const selectedPeriodLabel = () => {
+      const labels = {
+        7: 'Last 7 Days',
+        30: 'Last 30 Days',
+        90: 'Last 90 Days',
+        180: 'Last 6 Months',
+        365: 'Last Year'
+      }
+      return labels[dateRange.value] || `Last ${dateRange.value} Days`
+    }
+
+    const escapeCSV = (value) => {
+      const text = value == null ? '' : String(value)
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+    }
+
+    const getExportRows = () => {
+      const data = salesData.value
+      const rows = [
+        ['Section', 'Metric', 'Name', 'Orders', 'Revenue', 'Quantity'],
+        ['Summary', 'Total Revenue', '', data.totalOrders || 0, data.totalRevenue || 0, ''],
+        ['Summary', 'Average Order Value', '', data.totalOrders || 0, data.averageOrderValue || 0, ''],
+        ['Summary', 'Conversion Rate', data.conversionRate == null ? '' : `${data.conversionRate}%`, '', '', '']
+      ]
+
+      for (const item of data.monthlySales || []) {
+        rows.push(['Monthly Sales', 'Revenue', item.month, item.orders || '', item.revenue || 0, ''])
+      }
+      for (const item of data.categoryRevenue || []) {
+        rows.push(['Category Performance', 'Revenue', item.category, item.orders || 0, item.revenue || 0, ''])
+      }
+      for (const item of data.topProducts || []) {
+        rows.push(['Top Selling Products', 'Revenue', item.name, '', item.totalRevenue || 0, item.totalSold || 0])
+      }
+      for (const item of orderStatuses.value) {
+        rows.push(['Order Status', 'Count', capitalize(item.name), item.count || 0, '', ''])
+      }
+      for (const item of paymentMethodsList.value) {
+        rows.push(['Payment Method', 'Count', item.label, item.count || 0, '', ''])
+      }
+      for (const item of data.dailyRevenue || []) {
+        rows.push(['Daily Revenue', 'Revenue', item._id, '', item.revenue || 0, ''])
+      }
+
+      return rows
+    }
+
+    const downloadCSV = () => {
+      const rows = getExportRows()
+      const csv = rows.map(row => row.map(escapeCSV).join(',')).join('\r\n')
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `water-lily-analytics-${dateRange.value}days-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    }
+
+    const downloadPDF = async () => {
+      if (isExporting.value) return
+      isExporting.value = true
+      try {
+        const { jsPDF } = await import('jspdf')
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+        const pageWidth = doc.internal.pageSize.getWidth()
+        const pageHeight = doc.internal.pageSize.getHeight()
+        let y = 48
+
+        const ensureSpace = (height = 20) => {
+          if (y + height > pageHeight - 48) {
+            doc.addPage()
+            y = 48
+          }
+        }
+
+        const addText = (text, size = 10, bold = false) => {
+          doc.setFont('helvetica', bold ? 'bold' : 'normal')
+          doc.setFontSize(size)
+          const lines = doc.splitTextToSize(String(text), pageWidth - 96)
+          ensureSpace(lines.length * (size + 4))
+          doc.text(lines, 48, y)
+          y += lines.length * (size + 4)
+        }
+
+        const addSection = (title) => {
+          ensureSpace(28)
+          doc.setDrawColor(45, 90, 39)
+          doc.setLineWidth(1)
+          doc.line(48, y - 8, pageWidth - 48, y - 8)
+          y += 12
+          addText(title, 12, true)
+        }
+
+        doc.setFillColor(45, 90, 39)
+        doc.rect(0, 0, pageWidth, 72, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(20)
+        doc.text('Water Lily Sales Analytics', 48, 44)
+        doc.setTextColor(30, 41, 59)
+
+        y = 96
+        addText(`Period: ${selectedPeriodLabel()}`, 10)
+        addText(`Generated: ${new Date().toLocaleString('en-PH')}`, 9)
+        y += 8
+
+        addSection('Revenue Overview')
+        addText(`Total Revenue: PHP ${formatNumber(salesData.value.totalRevenue)}`, 11)
+        addText(`Total Orders: ${salesData.value.totalOrders}`, 11)
+        addText(`Average Order Value: PHP ${formatNumber(salesData.value.averageOrderValue)}`, 11)
+        addText(`Conversion Rate: ${salesData.value.conversionRate == null ? 'N/A' : `${salesData.value.conversionRate}%`}`, 11)
+
+        addSection('Monthly Sales')
+        for (const item of salesData.value.monthlySales || []) {
+          addText(`${item.month}: PHP ${formatNumber(item.revenue)} (${item.orders || 0} orders)`)
+        }
+
+        addSection('Category Performance')
+        for (const item of salesData.value.categoryRevenue || []) {
+          addText(`${item.category}: PHP ${formatNumber(item.revenue)} (${item.orders || 0} orders)`)
+        }
+
+        addSection('Top Selling Products')
+        for (const item of salesData.value.topProducts || []) {
+          addText(`${item.name}: ${item.totalSold || 0} sold, PHP ${formatNumber(item.totalRevenue)}`)
+        }
+
+        addSection('Order Status Distribution')
+        for (const item of orderStatuses.value) {
+          addText(`${capitalize(item.name)}: ${item.count} (${item.percent}%)`)
+        }
+
+        addSection('Payment Methods')
+        for (const item of paymentMethodsList.value) {
+          addText(`${item.label}: ${item.count} (${item.percent}%)`)
+        }
+
+        addSection('Daily Revenue')
+        for (const item of salesData.value.dailyRevenue || []) {
+          addText(`${item._id}: PHP ${formatNumber(item.revenue)}`)
+        }
+
+        doc.save(`water-lily-analytics-${dateRange.value}days-${new Date().toISOString().slice(0, 10)}.pdf`)
+      } catch (error) {
+        console.error('Error exporting analytics PDF:', error)
+        analyticsError.value = 'PDF export could not be created. Please try again.'
+      } finally {
+        isExporting.value = false
+      }
+    }
+
     onMounted(fetchAnalytics)
 
     return {
-      isLoading, dateRange, salesData,
+      isLoading, isExporting, analyticsError, dateRange, salesData,
       paymentSegments, paymentMethodsList, orderStatuses,
       dailyPoints, linePath, areaPath, dailyLabels,
-      fetchAnalytics, formatNumber, formatShort, getBarHeight, getCategoryPercent, capitalize
+      fetchAnalytics, formatNumber, formatShort, getBarHeight, getCategoryPercent, capitalize,
+      downloadCSV, downloadPDF
     }
   }
 }
@@ -400,6 +554,48 @@ export default {
 
 .header-subtitle { color: #64748b; }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #dbe3d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.export-button span {
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  background: #2d5a27;
+  color: #fff;
+  font-size: 0.65rem;
+}
+
+.export-button.pdf span {
+  background: #b91c1c;
+}
+
+.export-button:hover {
+  border-color: #2d5a27;
+  background: #f8faf8;
+}
+
+.export-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .date-filter select {
   padding: 0.5rem 1rem;
   border: 1px solid #e2e8f0;
@@ -412,6 +608,27 @@ export default {
   display: flex;
   justify-content: center;
   padding: 4rem;
+}
+
+.analytics-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.analytics-error button {
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 6px;
+  background: #991b1b;
+  color: #fff;
+  cursor: pointer;
 }
 
 .spinner {
@@ -869,5 +1086,26 @@ export default {
   .stats-row { grid-template-columns: repeat(2, 1fr); }
   .charts-row { grid-template-columns: 1fr; }
   .two-col-section { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .date-filter {
+    width: 100%;
+  }
+
+  .date-filter select {
+    width: 100%;
+  }
 }
 </style>

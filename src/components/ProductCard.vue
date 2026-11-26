@@ -27,18 +27,6 @@
           <div class="image-overlay"></div>
         </div>
         
-        <!-- Product Badges -->
-        <div class="product-badges">
-          <span 
-            v-for="tag in product.tags.slice(0, 2)" 
-            :key="tag"
-            class="badge"
-            :class="`badge-${tag.replace('-', '')}`"
-          >
-            {{ formatBadgeText(tag) }}
-          </span>
-        </div>
-
         <!-- Wishlist Button -->
         <button 
           @click.prevent="toggleWishlist"
@@ -68,8 +56,6 @@
           <RatingStars :rating="product.rating" :size="14" />
           <span class="rating-count">({{ product.reviewsCount }})</span>
         </div>
-        
-        <p class="product-description">{{ product.shortDesc }}</p>
         
         <div class="product-bottom">
           <div class="product-price">
@@ -134,7 +120,7 @@ export default {
       const variantSize = defaultVariant?.size || null
       const variantColor = defaultVariant?.color || null
       
-      const success = addToCart(props.product.id, variantSize, variantColor, 1)
+      const success = addToCart(props.product, variantSize, variantColor, 1)
       
       if (success && window.showToast) {
         window.showToast(`Added ${props.product.name} to cart! 🛒`, 'success')
@@ -151,22 +137,14 @@ export default {
       }
     }
 
-    const formatBadgeText = (tag) => {
-      const badgeMap = {
-        'eco-friendly': 'Eco',
-        'handmade': 'Handmade', 
-        'best-seller': 'Best Seller'
-      }
-      return badgeMap[tag] || tag
-    }
-
     const getCategoryName = (slug) => {
       const categoryMap = {
         'bags': 'Bags',
+        'shoulder-bags': 'Shoulder Bags',
         'baskets': 'Baskets',
         'home-decor': 'Home Decor',
-        'coasters': 'Coasters',
-        'placemats': 'Placemats'
+        'wallets': 'Wallets',
+        'hats': 'Hats'
       }
       return categoryMap[slug] || slug
     }
@@ -183,7 +161,6 @@ export default {
       handleQuickAdd,
       toggleWishlist,
       formatCurrency,
-      formatBadgeText,
       getCategoryName,
       handleImageError
     }
@@ -239,7 +216,7 @@ export default {
 .hover-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   transition: transform var(--transition-smooth);
 }
 
@@ -280,17 +257,6 @@ export default {
 
 .product-card:hover .image-overlay {
   opacity: 1;
-}
-
-/* Product Badges */
-.product-badges {
-  position: absolute;
-  top: var(--space-3);
-  left: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  z-index: 3;
 }
 
 /* Wishlist Button */
@@ -418,18 +384,6 @@ export default {
   font-weight: 500;
 }
 
-.product-description {
-  font-size: var(--text-sm);
-  color: var(--ink-light);
-  line-height: 1.6;
-  flex: 1;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 .product-bottom {
   display: flex;
   justify-content: space-between;
@@ -520,11 +474,6 @@ export default {
 @media (max-width: 480px) {
   .product-image {
     height: 200px;
-  }
-  
-  .product-badges {
-    top: var(--space-2);
-    left: var(--space-2);
   }
   
   .wishlist-btn {

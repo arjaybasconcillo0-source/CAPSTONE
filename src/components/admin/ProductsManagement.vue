@@ -24,10 +24,11 @@
       <select v-model="categoryFilter" @change="filterProducts" class="filter-select">
         <option value="">All Categories</option>
         <option value="bags">Bags</option>
-        <option value="baskets">Baskets</option>
+        <option value="shoulder-bags">Shoulder Bags</option>
+        <option value="baskets">Baskets (Legacy)</option>
         <option value="home-decor">Home Decor</option>
-        <option value="coasters">Coasters</option>
-        <option value="placemats">Placemats</option>
+        <option value="wallets">Wallets</option>
+        <option value="hats">Hats</option>
       </select>
     </div>
 
@@ -50,13 +51,17 @@
           </tr>
         </thead>
         <tbody>
+          <tr v-if="filteredProducts.length === 0">
+            <td colspan="6" class="empty-products">
+              {{ searchQuery || categoryFilter ? 'No matching products.' : 'No products added yet. Add your first product.' }}
+            </td>
+          </tr>
           <tr v-for="product in filteredProducts" :key="product._id">
             <td>
               <div class="product-cell">
                 <img :src="product.images[0]" :alt="product.name" class="product-thumb" />
                 <div class="product-info">
                   <span class="product-name">{{ product.name }}</span>
-                  <span class="product-desc">{{ product.shortDesc }}</span>
                 </div>
               </div>
             </td>
@@ -119,16 +124,12 @@
               <select v-model="formData.category" required>
                 <option value="">Select category</option>
                 <option value="bags">Bags</option>
-                <option value="baskets">Baskets</option>
+                <option value="shoulder-bags">Shoulder Bags</option>
+                <option value="baskets">Baskets (Legacy)</option>
                 <option value="home-decor">Home Decor</option>
-                <option value="coasters">Coasters</option>
-                <option value="placemats">Placemats</option>
+                <option value="wallets">Wallets</option>
+                <option value="hats">Hats</option>
               </select>
-            </div>
-
-            <div class="form-group full">
-              <label>Short Description *</label>
-              <input type="text" v-model="formData.shortDesc" required maxlength="200" />
             </div>
 
             <div class="form-group full">
@@ -215,7 +216,7 @@ export default {
     const productToDelete = ref(null)
 
     const formData = reactive({
-      name: '', price: 0, category: '', shortDesc: '', description: '', stock: 0
+      name: '', price: 0, category: '', description: '', stock: 0
     })
     const imagesText = ref('')
     const materialsText = ref('')
@@ -225,7 +226,10 @@ export default {
       let result = [...products.value]
       if (searchQuery.value) {
         const q = searchQuery.value.toLowerCase()
-        result = result.filter(p => p.name.toLowerCase().includes(q) || p.shortDesc.toLowerCase().includes(q))
+        result = result.filter(p =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q)
+        )
       }
       if (categoryFilter.value) {
         result = result.filter(p => p.category === categoryFilter.value)
@@ -243,7 +247,6 @@ export default {
       formData.name = ''
       formData.price = 0
       formData.category = ''
-      formData.shortDesc = ''
       formData.description = ''
       formData.stock = 0
       imagesText.value = ''
@@ -265,7 +268,6 @@ export default {
       formData.name = product.name
       formData.price = product.price
       formData.category = product.category
-      formData.shortDesc = product.shortDesc
       formData.description = product.description
       formData.stock = product.stock
       imagesText.value = (product.images || []).join('\n')
@@ -440,6 +442,12 @@ export default {
   border-bottom: 1px solid #f1f5f9;
 }
 
+.data-table td.empty-products {
+  padding: 2rem;
+  color: #64748b;
+  text-align: center;
+}
+
 .data-table th {
   background: #f8fafc;
   font-weight: 600;
@@ -469,15 +477,6 @@ export default {
 .product-name {
   font-weight: 600;
   color: #1e293b;
-}
-
-.product-desc {
-  font-size: 0.8rem;
-  color: #64748b;
-  max-width: 200px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .category-badge {

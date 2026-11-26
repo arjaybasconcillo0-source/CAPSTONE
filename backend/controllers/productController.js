@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
 
@@ -50,6 +51,10 @@ export const getProducts = async (req, res) => {
 // @access  Public
 export const getProductById = async (req, res) => {
   try {
+    if (!mongoose.isObjectIdOrHexString(req.params.id)) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
     const product = await Product.findById(req.params.id);
     
     if (product) {
@@ -72,7 +77,6 @@ export const createProduct = async (req, res) => {
       name,
       price,
       category,
-      shortDesc,
       description,
       materials,
       tags,
@@ -85,7 +89,6 @@ export const createProduct = async (req, res) => {
       name,
       price,
       category,
-      shortDesc,
       description,
       materials: materials || [],
       tags: tags || [],
@@ -107,6 +110,10 @@ export const createProduct = async (req, res) => {
 // @access  Private/Admin
 export const updateProduct = async (req, res) => {
   try {
+    if (!mongoose.isObjectIdOrHexString(req.params.id)) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (!product) {
@@ -131,6 +138,10 @@ export const updateProduct = async (req, res) => {
 // @access  Private/Admin
 export const deleteProduct = async (req, res) => {
   try {
+    if (!mongoose.isObjectIdOrHexString(req.params.id)) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (!product) {

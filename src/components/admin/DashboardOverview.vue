@@ -6,6 +6,11 @@
       <p>Loading dashboard data...</p>
     </div>
 
+    <div v-else-if="analyticsError" class="dashboard-error" role="alert">
+      <p>{{ analyticsError }}</p>
+      <button type="button" class="retry-button" @click="fetchAnalytics">Try again</button>
+    </div>
+
     <template v-else>
       <!-- Stats Cards -->
       <div class="stats-grid">
@@ -68,17 +73,28 @@
         <div class="chart-card large">
           <div class="chart-header">
             <h3>Sales Overview</h3>
-            <span class="chart-subtitle">Last 6 months</span>
+            <div class="chart-controls">
+              <select v-model="salesBasis" class="chart-range-select" aria-label="Sales basis" @change="fetchAnalytics">
+                <option value="orders">Net orders (excludes failed/refunded)</option>
+                <option value="paid">Paid only</option>
+              </select>
+              <select v-model="salesRange" class="chart-range-select" aria-label="Sales chart range" @change="fetchAnalytics">
+                <option value="all">All time</option>
+                <option value="12">Last 12 months</option>
+                <option value="6">Last 6 months</option>
+              </select>
+            </div>
           </div>
           <div class="chart-container">
-            <div class="bar-chart">
+            <div class="bar-chart" :style="{ minWidth: monthlySalesData.length > 12 ? `${monthlySalesData.length * 52}px` : '100%' }">
               <div 
                 v-for="(month, index) in monthlySalesData" 
                 :key="index"
                 class="bar-wrapper"
               >
                 <div 
-                  class="bar" 
+                  class="bar"
+                  :class="{ 'bar-empty': month.sales === 0 }"
                   :style="{ height: `${month.percentage}%` }"
                   :title="`₱${formatNumber(month.sales)}`"
                 ></div>
@@ -86,6 +102,10 @@
               </div>
             </div>
           </div>
+          <p v-if="analyticsError" class="chart-empty-state">{{ analyticsError }}</p>
+          <p v-else-if="!hasMonthlySales" class="chart-empty-state">
+            {{ emptySalesMessage }}
+          </p>
         </div>
 
         <!-- Order Status -->
@@ -140,7 +160,7 @@
         <!-- Top Products -->
         <div class="card top-products">
           <div class="card-header">
-            <h3>Top Selling Products</h3>
+            <h3>Best-Selling Products</h3>
           </div>
           <div class="products-list">
             <div v-if="analytics.topProducts?.length === 0" class="empty-state">
@@ -157,6 +177,54 @@
                 <span class="product-sold">{{ product.totalSold }} sold</span>
               </div>
               <span class="product-revenue">₱{{ formatNumber(product.revenue) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lowest-Selling Products -->
+        <div class="card top-products">
+          <div class="card-header">
+            <h3>Lowest-Selling Products</h3>
+          </div>
+          <div class="products-list">
+            <div v-if="analytics.lowSoldProducts?.length === 0" class="empty-state">
+              No products available
+            </div>
+            <div
+              v-for="product in analytics.lowSoldProducts"
+              :key="product._id"
+              class="product-item"
+            >
+              <div class="product-info">
+                <span class="product-name">{{ product.name }}</span>
+                <span class="product-sold">{{ product.totalSold }} sold</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Low Stock Alerts -->
+        <div class="card stock-alerts">
+          <div class="card-header">
+            <h3>Low Stock Alerts</h3>
+            <p class="stock-alert-subtitle">Fewer than 10 units remaining</p>
+          </div>
+          <div class="products-list">
+            <div v-if="analytics.stockAlerts?.length === 0" class="empty-state">
+              No products are near out of stock
+            </div>
+            <div
+              v-for="product in analytics.stockAlerts"
+              :key="product._id"
+              class="product-item stock-alert-item"
+            >
+              <div class="product-info">
+                <span class="product-name">{{ product.name }}</span>
+                <span class="product-sold">{{ product.category }}</span>
+              </div>
+              <span class="stock-alert-count" :class="{ 'out-of-stock': product.stock === 0 }">
+                {{ product.stock === 0 ? 'Out of stock' : `${product.stock} left` }}
+              </span>
             </div>
           </div>
         </div>
@@ -198,25 +266,60 @@ export default {
     const { authFetch } = useAuth()
     const isLoading = ref(true)
     const analytics = ref({})
+    const analyticsError = ref('')
+    const salesRange = ref('all')
+    const salesBasis = ref('orders')
 
     const formatNumber = (num) => {
       return num?.toLocaleString() || '0'
     }
 
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
     const monthlySalesData = computed(() => {
       const data = analytics.value.monthlySales || []
-      if (data.length === 0) return []
+      const salesByMonth = new Map(
+        data.map(item => [`${item._id.year}-${item._id.month}`, Number(item.sales) || 0])
+      )
+      const currentDate = new Date()
+      const earliestSale = data.reduce((earliest, item) => {
+        const saleDate = new Date(item._id.year, item._id.month - 1, 1)
+        return !earliest || saleDate < earliest ? saleDate : earliest
+      }, null)
+      const startDate = salesRange.value === 'all' && earliestSale
+        ? earliestSale
+        : new Date(
+          currentDate.getFullYear(),
+          currentDate.getMonth() - (salesRange.value === 'all' ? 5 : Number(salesRange.value) - 1),
+          1
+        )
+      const monthCount = (currentDate.getFullYear() - startDate.getFullYear()) * 12
+        + currentDate.getMonth() - startDate.getMonth() + 1
+      const months = Array.from({ length: monthCount }, (_, index) => {
+        const monthDate = new Date(startDate.getFullYear(), startDate.getMonth() + index, 1)
+        const month = monthDate.getMonth() + 1
+        const sales = salesByMonth.get(`${monthDate.getFullYear()}-${month}`) || 0
+        return {
+          label: monthDate.toLocaleString('en', { month: 'short', year: '2-digit' }),
+          sales
+        }
+      })
+      const maxSales = Math.max(...months.map(month => month.sales), 1)
 
-      const maxSales = Math.max(...data.map(d => d.sales), 1)
-      return data.map(d => ({
-        label: monthNames[d._id.month - 1],
-        sales: d.sales,
-        percentage: (d.sales / maxSales) * 100
+      return months.map(month => ({
+        ...month,
+        percentage: (month.sales / maxSales) * 100
       }))
     })
 
+    const hasMonthlySales = computed(() => monthlySalesData.value.some(month => month.sales > 0))
+    const emptySalesMessage = computed(() => {
+      const period = salesRange.value === 'all' ? 'yet' : `in the last ${salesRange.value} months`
+      const basis = salesBasis.value === 'paid' ? 'paid sales' : 'orders'
+      return `No ${basis} found ${period}.`
+    })
+
+    const salesRangeQuery = computed(
+      () => `?salesRange=${salesRange.value}&salesBasis=${salesBasis.value}`
+    )
     const orderStatusData = computed(() => {
       const statusColors = {
         pending: '#f59e0b',
@@ -237,10 +340,12 @@ export default {
     const fetchAnalytics = async () => {
       try {
         isLoading.value = true
-        const data = await authFetch('/analytics/dashboard')
+        analyticsError.value = ''
+        const data = await authFetch(`/analytics/dashboard${salesRangeQuery.value}`)
         analytics.value = data
       } catch (error) {
         console.error('Failed to fetch analytics:', error)
+        analyticsError.value = 'Sales data could not be loaded. Please try again later.'
       } finally {
         isLoading.value = false
       }
@@ -254,8 +359,14 @@ export default {
       isLoading,
       analytics,
       formatNumber,
+      salesRange,
+      salesBasis,
       monthlySalesData,
-      orderStatusData
+      hasMonthlySales,
+      emptySalesMessage,
+      analyticsError,
+      orderStatusData,
+      fetchAnalytics
     }
   }
 }
@@ -275,6 +386,32 @@ export default {
   justify-content: center;
   padding: 4rem;
   color: #64748b;
+}
+
+.dashboard-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 2rem;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.dashboard-error p {
+  margin: 0;
+}
+
+.retry-button {
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: #991b1b;
+  color: #fff;
+  cursor: pointer;
 }
 
 .spinner {
@@ -384,6 +521,8 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin-bottom: 1.5rem;
 }
 
@@ -391,6 +530,20 @@ export default {
   font-size: 1.1rem;
   font-weight: 600;
   color: #1e293b;
+}
+
+.chart-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chart-range-select {
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #475569;
+  background: white;
+  font-size: 0.85rem;
 }
 
 .chart-subtitle {
@@ -402,6 +555,7 @@ export default {
   height: 250px;
   display: flex;
   align-items: flex-end;
+  overflow-x: auto;
 }
 
 .bar-chart {
@@ -434,6 +588,11 @@ export default {
   cursor: pointer;
 }
 
+.bar-empty {
+  min-height: 0;
+  background: #e2e8f0;
+}
+
 .bar:hover {
   opacity: 0.85;
 }
@@ -442,6 +601,13 @@ export default {
   margin-top: 0.5rem;
   font-size: 0.75rem;
   color: #64748b;
+}
+
+.chart-empty-state {
+  color: #64748b;
+  font-size: 0.85rem;
+  text-align: center;
+  margin-top: 0.75rem;
 }
 
 /* Status List */
@@ -482,7 +648,7 @@ export default {
 /* Bottom Row */
 .bottom-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.5rem;
 }
 
@@ -639,9 +805,34 @@ export default {
   color: #16a34a;
 }
 
+.stock-alert-subtitle {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.stock-alert-item {
+  gap: 0.5rem;
+}
+
+.stock-alert-count {
+  flex-shrink: 0;
+  color: #b45309;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.stock-alert-count.out-of-stock {
+  color: #b91c1c;
+}
+
 @media (max-width: 1200px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .bottom-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

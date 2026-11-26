@@ -144,7 +144,7 @@ export default {
 }
 
 /* Content Styling */
-.accordion-content h4 {
+.accordion-inner :deep(.accordion-content h4) {
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--green-700);
@@ -152,16 +152,17 @@ export default {
   margin-top: var(--space-4);
 }
 
-.accordion-content h4:first-child {
+.accordion-inner :deep(.accordion-content h4:first-child) {
   margin-top: 0;
 }
 
-.accordion-content ul {
+.accordion-inner :deep(.accordion-content ul) {
   list-style: none;
   margin-bottom: var(--space-4);
+  padding: 0;
 }
 
-.accordion-content li {
+.accordion-inner :deep(.accordion-content li) {
   position: relative;
   padding-left: var(--space-4);
   margin-bottom: var(--space-1);
@@ -169,7 +170,7 @@ export default {
   line-height: 1.6;
 }
 
-.accordion-content li::before {
+.accordion-inner :deep(.accordion-content li::before) {
   content: '•';
   position: absolute;
   left: 0;
@@ -177,13 +178,13 @@ export default {
   font-weight: bold;
 }
 
-.accordion-content p {
+.accordion-inner :deep(.accordion-content p) {
   color: var(--ink-light);
   line-height: 1.6;
   margin-bottom: var(--space-3);
 }
 
-.accordion-content p:last-child {
+.accordion-inner :deep(.accordion-content p:last-child) {
   margin-bottom: 0;
 }
 

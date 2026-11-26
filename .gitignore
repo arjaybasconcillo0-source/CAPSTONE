@@ -1,0 +1,4 @@
+node_modules
+backend/ai-service/reference_data/
+/backend/.env
+/backend/serviceAccountKey.json

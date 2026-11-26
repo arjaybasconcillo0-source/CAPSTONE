@@ -1,20 +1,27 @@
+
 <template>
   <div class="admin-dashboard">
     <!-- Sidebar -->
     <aside class="admin-sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-header">
         <div class="logo">
-          <span class="logo-icon">🪷</span>
+          <img class="logo-icon" src="../assets/elilysense-mark.png" alt="" aria-hidden="true">
           <span v-if="!sidebarCollapsed" class="logo-text">Water Lily</span>
         </div>
-        <button @click="sidebarCollapsed = !sidebarCollapsed" class="collapse-btn">
+
+        <button
+          @click="sidebarCollapsed = !sidebarCollapsed"
+          class="collapse-btn"
+          aria-label="Toggle sidebar"
+        >
           <ChevronIcon :class="{ rotated: sidebarCollapsed }" />
         </button>
       </div>
 
+      <!-- Navigation -->
       <nav class="sidebar-nav">
-        <button 
-          v-for="item in navItems" 
+        <button
+          v-for="item in navItems"
           :key="item.id"
           @click="activeTab = item.id"
           class="nav-item"
@@ -25,11 +32,13 @@
         </button>
       </nav>
 
+      <!-- Sidebar Footer -->
       <div class="sidebar-footer">
         <router-link to="/" class="nav-item">
           <HomeIcon />
           <span v-if="!sidebarCollapsed">View Store</span>
         </router-link>
+
         <button @click="handleLogout" class="nav-item logout-btn">
           <LogoutIcon />
           <span v-if="!sidebarCollapsed">Logout</span>
@@ -43,7 +52,9 @@
       <header class="admin-topbar">
         <div class="topbar-left">
           <h1 class="page-title">{{ currentPageTitle }}</h1>
+          <p class="page-subtitle">Water Lily Handicrafts Administration</p>
         </div>
+
         <div class="topbar-right">
           <div class="admin-profile">
             <span class="admin-name">{{ userName }}</span>
@@ -52,25 +63,24 @@
         </div>
       </header>
 
-      <!-- Content Area -->
+      <!-- Page Content -->
       <div class="admin-content">
-        <!-- Dashboard Overview -->
         <DashboardOverview v-if="activeTab === 'dashboard'" />
 
-        <!-- Products Management -->
         <ProductsManagement v-else-if="activeTab === 'products'" />
 
-        <!-- Orders Management -->
         <OrdersManagement v-else-if="activeTab === 'orders'" />
 
-        <!-- Inventory -->
         <InventoryManagement v-else-if="activeTab === 'inventory'" />
 
-        <!-- Analytics -->
         <AnalyticsView v-else-if="activeTab === 'analytics'" />
 
-        <!-- IoT Controller -->
         <IoTController v-else-if="activeTab === 'iot'" />
+
+        <CameraViewing v-else-if="activeTab === 'test'" />
+
+        <SettingsView v-else-if="activeTab === 'settings'" />
+
       </div>
     </main>
   </div>
@@ -80,52 +90,147 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
+
+// Admin Components
 import DashboardOverview from '../components/admin/DashboardOverview.vue'
 import ProductsManagement from '../components/admin/ProductsManagement.vue'
 import OrdersManagement from '../components/admin/OrdersManagement.vue'
 import InventoryManagement from '../components/admin/InventoryManagement.vue'
 import AnalyticsView from '../components/admin/AnalyticsView.vue'
 import IoTController from '../components/admin/IoTController.vue'
+import CameraViewing from '../components/admin/test.vue'
+import SettingsView from './Settings.vue'
 
-// Icons
+// Dashboard Icon
 const DashboardIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="9"/>
+      <rect x="14" y="3" width="7" height="5"/>
+      <rect x="14" y="12" width="7" height="9"/>
+      <rect x="3" y="16" width="7" height="5"/>
+    </svg>
+  `
 }
 
+// Products Icon
 const ProductsIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+      <line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+  `
 }
 
+// Orders Icon
 const OrdersIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <path d="M16 10a4 4 0 0 1-8 0"/>
+    </svg>
+  `
 }
 
+// Inventory Icon
 const InventoryIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+    </svg>
+  `
 }
 
+// Analytics Icon
 const AnalyticsIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="18" y1="20" x2="18" y2="10"/>
+      <line x1="12" y1="20" x2="12" y2="4"/>
+      <line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+  `
 }
 
+// IoT Icon
 const IoTIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 6a6 6 0 0 1 6 6"/><circle cx="12" cy="12" r="2"/><path d="M12 2a10 10 0 0 0-10 10"/><path d="M12 6a6 6 0 0 0-6 6"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="2"/>
+      <path d="M12 2a10 10 0 0 0-10 10"/>
+      <path d="M12 6a6 6 0 0 0-6 6"/>
+      <path d="M12 2a10 10 0 0 1 10 10"/>
+      <path d="M12 6a6 6 0 0 1 6 6"/>
+    </svg>
+  `
 }
 
+// Camera viewing icon
+const CameraIcon = {
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="6" width="13" height="12" rx="2"/>
+      <path d="m16 10 5-3v10l-5-3"/>
+    </svg>
+  `
+}
+
+const SettingsIcon = {
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.33 2.67l-.08-.08a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.33l.06-.06A1.65 1.65 0 0 0 5.2 15a1.65 1.65 0 0 0-1.51-1H3.6a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+    </svg>
+  `
+}
+
+// Chevron Icon
 const ChevronIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  `
 }
 
+// Logout Icon
 const LogoutIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+      <polyline points="16 17 21 12 16 7"/>
+      <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+  `
 }
 
+// Home Icon
 const HomeIcon = {
-  template: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`
+  template: `
+    <svg width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+  `
 }
 
 export default {
   name: 'AdminDashboard',
+
   components: {
     DashboardOverview,
     ProductsManagement,
@@ -133,21 +238,26 @@ export default {
     InventoryManagement,
     AnalyticsView,
     IoTController,
+    CameraViewing,
+    SettingsView,
     DashboardIcon,
     ProductsIcon,
     OrdersIcon,
     InventoryIcon,
     AnalyticsIcon,
     IoTIcon,
+    CameraIcon,
+    SettingsIcon,
     ChevronIcon,
     LogoutIcon,
     HomeIcon
   },
+
   setup() {
     const router = useRouter()
     const { isAuthenticated, isAdmin, userName, logout } = useAuth()
 
-    // Redirect if not admin
+    // Check admin access
     onMounted(() => {
       if (!isAuthenticated.value || !isAdmin.value) {
         router.push('/login')
@@ -157,22 +267,27 @@ export default {
     const sidebarCollapsed = ref(false)
     const activeTab = ref('dashboard')
 
+    // Admin navigation items
     const navItems = [
       { id: 'dashboard', label: 'Dashboard', icon: DashboardIcon },
       { id: 'products', label: 'Products', icon: ProductsIcon },
       { id: 'orders', label: 'Orders', icon: OrdersIcon },
       { id: 'inventory', label: 'Inventory', icon: InventoryIcon },
       { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon },
-      { id: 'iot', label: 'IoT Control', icon: IoTIcon }
+      { id: 'iot', label: 'IoT Control', icon: IoTIcon },
+      { id: 'test', label: 'Camera Viewing', icon: CameraIcon },
+      { id: 'settings', label: 'Settings', icon: SettingsIcon }
     ]
 
     const currentPageTitle = computed(() => {
-      const item = navItems.find(i => i.id === activeTab.value)
+      const item = navItems.find(item => item.id === activeTab.value)
       return item ? item.label : 'Dashboard'
     })
 
     const userInitials = computed(() => {
-      return userName.value ? userName.value.charAt(0).toUpperCase() : 'A'
+      return userName.value
+        ? userName.value.charAt(0).toUpperCase()
+        : 'A'
     })
 
     const handleLogout = () => {
@@ -234,7 +349,11 @@ export default {
 }
 
 .logo-icon {
-  font-size: 1.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  object-fit: cover;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .logo-text {
@@ -266,6 +385,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  overflow-y: auto;
 }
 
 .nav-item {
@@ -316,6 +436,7 @@ export default {
 .admin-main {
   flex: 1;
   margin-left: 260px;
+  min-width: 0;
   transition: margin-left 0.3s ease;
 }
 
@@ -339,6 +460,13 @@ export default {
   font-size: 1.5rem;
   font-weight: 600;
   color: #1e293b;
+  margin: 0;
+}
+
+.page-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
 }
 
 .topbar-right {
@@ -375,6 +503,7 @@ export default {
   min-height: calc(100vh - 73px);
 }
 
+/* Responsive */
 @media (max-width: 1024px) {
   .admin-sidebar {
     width: 70px;
@@ -392,15 +521,31 @@ export default {
 
 @media (max-width: 768px) {
   .admin-sidebar {
-    transform: translateX(-100%);
+    width: 70px;
   }
 
   .admin-main {
-    margin-left: 0;
+    margin-left: 70px;
   }
 
   .admin-content {
     padding: 1rem;
+  }
+
+  .admin-topbar {
+    padding: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.2rem;
+  }
+
+  .page-subtitle {
+    display: none;
+  }
+
+  .admin-name {
+    display: none;
   }
 }
 </style>

@@ -12,7 +12,7 @@
       <div class="success-content">
         <h2 class="success-title">Order Placed Successfully!</h2>
         <p class="success-message">
-          Thank you for your purchase. Your order has been confirmed and will be processed shortly.
+          Thank you for your purchase. Keep your order number handy to check delivery updates.
         </p>
         
         <div class="order-details">
@@ -26,7 +26,7 @@
             <ul class="steps-list">
               <li>
                 <CheckIcon />
-                <span>Order confirmation email sent</span>
+                <span>Your order is saved and waiting for the seller</span>
               </li>
               <li>
                 <TruckIcon />
@@ -34,7 +34,7 @@
               </li>
               <li>
                 <GiftIcon />
-                <span>You'll receive tracking information within 24 hours</span>
+                <span>Track progress with your order number and checkout phone</span>
               </li>
             </ul>
           </div>
@@ -112,16 +112,16 @@ export default {
     orderNumber: {
       type: String,
       required: true
+    },
+    phone: {
+      type: String,
+      default: ''
     }
   },
-  emits: ['close'],
+  emits: ['close', 'track'],
   setup(props, { emit }) {
     const trackOrder = () => {
-      // Mock tracking functionality
-      if (window.showToast) {
-        window.showToast('Order tracking feature coming soon!', 'info')
-      }
-      emit('close')
+      emit('track', { orderNumber: props.orderNumber, phone: props.phone })
     }
 
     return {

@@ -9,8 +9,10 @@ import Shop from './pages/Shop.vue'
 import Product from './pages/Product.vue'
 import Cart from './pages/Cart.vue'
 import Checkout from './pages/Checkout.vue'
+import TrackOrder from './pages/TrackOrder.vue'
 import Login from './pages/Login.vue'
 import Admin from './pages/Admin.vue'
+import Settings from './pages/Settings.vue'
 
 // Import auth composable for route guards
 import { useAuth } from './composables/useAuth.js'
@@ -23,8 +25,10 @@ const router = createRouter({
     { path: '/shop', name: 'Shop', component: Shop },
     { path: '/product/:id', name: 'Product', component: Product },
     { path: '/cart', name: 'Cart', component: Cart },
-    { path: '/checkout', name: 'Checkout', component: Checkout },
+    { path: '/checkout', name: 'Checkout', component: Checkout, meta: { requiresAuth: true } },
+    { path: '/track-order', name: 'TrackOrder', component: TrackOrder, meta: { requiresAuth: true } },
     { path: '/login', name: 'Login', component: Login },
+    { path: '/settings', name: 'Settings', component: Settings, meta: { requiresAuth: true } },
     { 
       path: '/admin', 
       name: 'Admin', 
@@ -44,12 +48,14 @@ router.beforeEach((to, from, next) => {
   
   if (to.meta.requiresAdmin) {
     if (!isAuthenticated.value) {
-      next({ name: 'Login' })
+      next({ name: 'Login', query: { redirect: to.fullPath } })
     } else if (!isAdmin.value) {
       next({ name: 'Home' })
     } else {
       next()
     }
+  } else if (to.meta.requiresAuth && !isAuthenticated.value) {
+    next({ name: 'Login', query: { redirect: to.fullPath } })
   } else {
     next()
   }

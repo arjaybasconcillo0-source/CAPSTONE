@@ -9,6 +9,7 @@
         <select v-model="statusFilter" @change="filterOrders" class="filter-select">
           <option value="">All Status</option>
           <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
           <option value="processing">Processing</option>
           <option value="shipped">Shipped</option>
           <option value="delivered">Delivered</option>
@@ -74,8 +75,8 @@
               </span>
             </td>
             <td>
-              <span class="status-badge" :class="order.status">
-                {{ capitalizeFirst(order.status) }}
+              <span class="status-badge" :class="order.orderStatus">
+                {{ capitalizeFirst(order.orderStatus) }}
               </span>
             </td>
             <td class="date-cell">{{ formatDate(order.createdAt) }}</td>
@@ -109,8 +110,8 @@
             <div class="info-grid">
               <div class="info-item">
                 <span class="info-label">Status</span>
-                <span class="status-badge" :class="selectedOrder?.status">
-                  {{ capitalizeFirst(selectedOrder?.status) }}
+                <span class="status-badge" :class="selectedOrder?.orderStatus">
+                  {{ capitalizeFirst(selectedOrder?.orderStatus) }}
                 </span>
               </div>
               <div class="info-item">
@@ -119,8 +120,8 @@
               </div>
               <div class="info-item">
                 <span class="info-label">Payment Status</span>
-                <span class="payment-status" :class="selectedOrder?.isPaid ? 'paid' : 'unpaid'">
-                  {{ selectedOrder?.isPaid ? 'Paid' : 'Unpaid' }}
+                <span class="payment-status" :class="selectedOrder?.paymentStatus">
+                  {{ capitalizeFirst(selectedOrder?.paymentStatus) }}
                 </span>
               </div>
               <div class="info-item">
@@ -146,9 +147,9 @@
             <h3>Order Items</h3>
             <div class="items-list">
               <div v-for="item in selectedOrder?.items" :key="item._id" class="order-item">
-                <img :src="item.product?.images?.[0]" :alt="item.product?.name" class="item-image" />
+                <img v-if="item.product?.images?.[0]" :src="item.product.images[0]" :alt="item.name" class="item-image" />
                 <div class="item-info">
-                  <span class="item-name">{{ item.product?.name }}</span>
+                  <span class="item-name">{{ item.name }}</span>
                   <span class="item-qty">Qty: {{ item.quantity }}</span>
                 </div>
                 <span class="item-price">₱{{ (item.price * item.quantity).toLocaleString() }}</span>
@@ -197,6 +198,15 @@
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>Payment Status</label>
+            <select v-model="newPaymentStatus" class="status-select">
+              <option value="pending">Pending</option>
+              <option value="paid">Paid</option>
+              <option value="failed">Failed</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
         </div>
         <div class="form-actions">
           <button @click="showStatusModal = false" class="btn-secondary">Cancel</button>
@@ -231,12 +241,13 @@ export default {
     const showStatusModal = ref(false)
     const selectedOrder = ref(null)
     const newStatus = ref('')
+    const newPaymentStatus = ref('')
     const isUpdating = ref(false)
 
     const statusCounts = computed(() => {
       const counts = { pending: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0 }
       orders.value.forEach(order => {
-        if (counts[order.status] !== undefined) counts[order.status]++
+        if (counts[order.orderStatus] !== undefined) counts[order.orderStatus]++
       })
       return counts
     })
@@ -244,21 +255,19 @@ export default {
     const fetchOrders = async () => {
       isLoading.value = true
       try {
-        const response = await authFetch('http://localhost:5000/api/orders')
-        if (response.ok) {
-          const data = await response.json()
-          orders.value = data
-          filterOrders()
-        }
+        const data = await authFetch('/orders')
+        orders.value = data.orders || data
+        filterOrders()
       } catch (error) {
         console.error('Error fetching orders:', error)
+      } finally {
+        isLoading.value = false
       }
-      isLoading.value = false
     }
 
     const filterOrders = () => {
       if (statusFilter.value) {
-        filteredOrders.value = orders.value.filter(o => o.status === statusFilter.value)
+        filteredOrders.value = orders.value.filter(o => o.orderStatus === statusFilter.value)
       } else {
         filteredOrders.value = [...orders.value]
       }
@@ -285,30 +294,32 @@ export default {
 
     const showUpdateStatus = (order) => {
       selectedOrder.value = order
-      newStatus.value = order.status
+      newStatus.value = order.orderStatus
+      newPaymentStatus.value = order.paymentStatus
       showStatusModal.value = true
     }
 
     const updateOrderStatus = async () => {
-      if (!selectedOrder.value || !newStatus.value) return
+      if (!selectedOrder.value || !newStatus.value || !newPaymentStatus.value) return
       isUpdating.value = true
 
       try {
-        const response = await authFetch(`http://localhost:5000/api/orders/${selectedOrder.value._id}/status`, {
+        const updatedOrder = await authFetch(`/orders/${selectedOrder.value._id}/status`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus.value })
+          body: JSON.stringify({
+            orderStatus: newStatus.value,
+            paymentStatus: newPaymentStatus.value
+          })
         })
 
-        if (response.ok) {
-          const updatedOrder = await response.json()
-          const index = orders.value.findIndex(o => o._id === updatedOrder._id)
-          if (index !== -1) {
-            orders.value[index] = updatedOrder
-            filterOrders()
-          }
-          showStatusModal.value = false
+        const index = orders.value.findIndex(o => o._id === updatedOrder._id)
+        if (index !== -1) {
+          orders.value[index] = updatedOrder
+          filterOrders()
         }
+        selectedOrder.value = updatedOrder
+        showStatusModal.value = false
       } catch (error) {
         console.error('Error updating order:', error)
       }
@@ -319,7 +330,7 @@ export default {
 
     return {
       orders, filteredOrders, isLoading, statusFilter, statusCounts,
-      showDetailsModal, showStatusModal, selectedOrder, newStatus, isUpdating,
+      showDetailsModal, showStatusModal, selectedOrder, newStatus, newPaymentStatus, isUpdating,
       filterOrders, capitalizeFirst, formatDate, viewOrder, showUpdateStatus, updateOrderStatus
     }
   }

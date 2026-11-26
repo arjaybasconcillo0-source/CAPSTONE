@@ -1,9 +1,9 @@
 <template>
   <div class="cart-item" :class="{ 'updating': disabled }">
     <div class="item-image">
-      <router-link :to="`/product/${item.product.id}`">
+      <router-link :to="`/product/${item.product._id || item.product.id}`">
         <img 
-          :src="item.product.images[0]" 
+          :src="item.product.images?.[0]"
           :alt="item.product.name"
           loading="lazy"
         >
@@ -13,7 +13,7 @@
     <div class="item-details">
       <div class="item-info">
         <h3 class="item-name">
-          <router-link :to="`/product/${item.product.id}`">
+          <router-link :to="`/product/${item.product._id || item.product.id}`">
             {{ item.product.name }}
           </router-link>
         </h3>
@@ -164,7 +164,7 @@ export default {
     })
 
     const getMaxQuantity = () => {
-      if (!props.item.product.variants) {
+      if (!props.item.product.variants?.length) {
         return props.item.product.stock || 0
       }
 
@@ -250,7 +250,7 @@ export default {
 .item-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   transition: transform var(--transition-base);
 }
 

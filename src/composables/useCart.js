@@ -2,11 +2,13 @@
 // Vue 3 Composition API store for cart management with localStorage persistence
 
 import { ref, computed, watch } from 'vue'
-import { getProductById } from '../data/products.js'
 
 // Cart state
 const cartItems = ref([])
 const isCartOpen = ref(false)
+
+const isDatabaseProduct = (product) =>
+  typeof product?._id === 'string' && /^[a-f\d]{24}$/i.test(product._id)
 
 // Load cart from localStorage on initialization
 const loadCartFromStorage = () => {
@@ -38,12 +40,15 @@ loadCartFromStorage()
 
 // Cart computed properties
 const cartCount = computed(() => {
-  return cartItems.value.reduce((total, item) => total + item.quantity, 0)
+  return cartItems.value.reduce(
+    (total, item) => total + (isDatabaseProduct(item.product) ? item.quantity : 0),
+    0
+  )
 })
 
 const cartSubtotal = computed(() => {
   return cartItems.value.reduce((total, item) => {
-    const product = getProductById(item.productId)
+    const product = isDatabaseProduct(item.product) ? item.product : null
     return total + (product ? product.price * item.quantity : 0)
   }, 0)
 })
@@ -59,28 +64,39 @@ const shippingFee = computed(() => {
 })
 
 // Cart actions
-const addToCart = (productId, variantSize = null, variantColor = null, quantity = 1) => {
-  const product = getProductById(productId)
-  if (!product) {
-    console.error('Product not found:', productId)
+const addToCart = (productOrId, variantSize = null, variantColor = null, quantity = 1) => {
+  const product = typeof productOrId === 'object' && productOrId !== null
+    ? productOrId
+    : null
+  if (!isDatabaseProduct(product)) {
+    console.error('Only products loaded from the database can be added to the cart:', productOrId)
     return false
   }
 
+  const productId = product._id
   // Create a unique key for the cart item based on product + variant
   const cartKey = `${productId}-${variantSize || 'default'}-${variantColor || 'default'}`
   
   const existingItem = cartItems.value.find(item => 
-    item.productId === productId && 
+    String(item.productId) === String(productId) &&
     item.variantSize === variantSize && 
     item.variantColor === variantColor
   )
 
   if (existingItem) {
     existingItem.quantity += quantity
+    existingItem.product = {
+      ...product,
+      id: productId
+    }
   } else {
     cartItems.value.push({
       id: cartKey,
       productId,
+      product: {
+        ...product,
+        id: productId
+      },
       variantSize,
       variantColor,
       quantity,
@@ -132,11 +148,11 @@ const closeCart = () => {
 // Get cart items with product details
 const cartItemsWithDetails = computed(() => {
   return cartItems.value.map(item => {
-    const product = getProductById(item.productId)
+    const product = isDatabaseProduct(item.product) ? item.product : null
     if (!product) return null
 
     // Find the specific variant details
-    const variant = product.variants.find(v => 
+    const variant = (product.variants || []).find(v =>
       v.size === item.variantSize && v.color === item.variantColor
     )
 

@@ -8,6 +8,10 @@ import {
   getCategories,
   createCategory
 } from '../controllers/productController.js';
+import {
+  getProductReviews,
+  createProductReview
+} from '../controllers/reviewController.js';
 import { protect, admin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -15,6 +19,8 @@ const router = express.Router();
 // Public routes
 router.get('/', getProducts);
 router.get('/categories', getCategories);
+router.get('/:id/reviews', getProductReviews);
+router.post('/:id/reviews', protect, createProductReview);
 router.get('/:id', getProductById);
 
 // Admin routes

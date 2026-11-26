@@ -76,17 +76,6 @@
                 <ChevronRightIcon />
               </button>
 
-              <!-- Product Badges -->
-              <div class="product-badges">
-                <span 
-                  v-for="tag in product.tags" 
-                  :key="tag"
-                  class="badge"
-                  :class="`badge-${tag.replace('-', '')}`"
-                >
-                  {{ formatBadgeText(tag) }}
-                </span>
-              </div>
             </div>
 
             <!-- Thumbnail Images -->
@@ -280,6 +269,100 @@
           </div>
         </div>
 
+        <section class="reviews-section" aria-labelledby="reviews-title">
+          <div class="reviews-heading">
+            <div>
+              <p class="reviews-eyebrow">From our customers</p>
+              <h2 id="reviews-title">Ratings &amp; Reviews</h2>
+            </div>
+            <div class="reviews-summary">
+              <strong>{{ Number(product.rating || 0).toFixed(1) }}</strong>
+              <RatingStars :rating="Number(product.rating || 0)" :size="18" />
+              <span>{{ product.reviewsCount || 0 }} ratings</span>
+            </div>
+          </div>
+
+          <div class="reviews-layout">
+            <p v-if="isAuthenticated && isReviewsLoading" class="reviews-empty">
+              Checking your review…
+            </p>
+
+            <form
+              v-else-if="isAuthenticated && !currentUserReview"
+              class="review-form"
+              @submit.prevent="submitReview"
+            >
+              <h3>Share your experience</h3>
+              <p class="review-form-hint">
+                Reviews are available to signed-in customers with a delivered order for this product.
+              </p>
+
+              <label class="review-field-label">Your rating</label>
+              <RatingStars
+                :rating="reviewRating"
+                :size="24"
+                interactive
+                @rate="reviewRating = $event"
+              />
+
+              <label class="review-field-label" for="product-review">Your review</label>
+              <textarea
+                id="product-review"
+                v-model.trim="reviewComment"
+                rows="4"
+                maxlength="2000"
+                placeholder="What did you like about this handcrafted piece?"
+                required
+              ></textarea>
+              <span class="review-character-count">{{ reviewComment.length }}/2000</span>
+
+              <p v-if="reviewError" class="review-message error" role="alert">{{ reviewError }}</p>
+              <p v-if="reviewSuccess" class="review-message success" role="status">{{ reviewSuccess }}</p>
+
+              <button
+                type="submit"
+                class="btn btn-primary"
+                :disabled="isReviewSubmitting || !reviewRating || !reviewComment.trim()"
+              >
+                {{ isReviewSubmitting ? 'Saving review…' : 'Submit review' }}
+              </button>
+            </form>
+
+            <div v-else-if="isAuthenticated && currentUserReview" class="review-submitted">
+              <h3>Thank you for your feedback</h3>
+              <p>{{ reviewSuccess || 'Your review has been submitted and cannot be changed.' }}</p>
+              <RatingStars :rating="currentUserReview.rating" :size="20" />
+              <p class="submitted-review-comment">{{ currentUserReview.comment }}</p>
+            </div>
+
+            <div v-else class="review-sign-in">
+              <h3>Purchased this item?</h3>
+              <p>Sign in after your order is delivered to rate and review this product.</p>
+              <router-link to="/login" class="btn btn-primary">Sign in to review</router-link>
+            </div>
+
+            <div class="review-list">
+              <p v-if="reviewsLoadError" class="review-message error" role="alert">
+                {{ reviewsLoadError }}
+              </p>
+              <p v-else-if="isReviewsLoading" class="reviews-empty">Loading reviews…</p>
+              <p v-else-if="reviews.length === 0" class="reviews-empty">
+                No written reviews yet. Be the first verified customer to share feedback.
+              </p>
+              <article v-for="review in reviews" :key="review._id" class="review-card">
+                <div class="review-card-heading">
+                  <div>
+                    <strong>{{ review.user?.name || 'Customer' }}</strong>
+                    <span>{{ formatReviewDate(review.createdAt) }}</span>
+                  </div>
+                  <RatingStars :rating="review.rating" :size="16" />
+                </div>
+                <p>{{ review.comment }}</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <!-- Related Products -->
         <section class="related-products">
           <h2 class="related-title">You Might Also Like</h2>
@@ -297,9 +380,10 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getProductById, getRelatedProducts, categories } from '../data/products.js'
+import { categories } from '../data/products.js'
 import { useCart } from '../composables/useCart.js'
 import { useProducts } from '../composables/useProducts.js'
+import { useAuth } from '../composables/useAuth.js'
 import ProductGrid from '../components/ProductGrid.vue'
 import RatingStars from '../components/RatingStars.vue'
 import ProductAccordion from '../components/ProductAccordion.vue'
@@ -344,7 +428,8 @@ export default {
   setup() {
     const route = useRoute()
     const { addToCart, formatCurrency } = useCart()
-    const { fetchProductById } = useProducts()
+    const { fetchProductById, fetchProducts } = useProducts()
+    const { user, isAuthenticated, authFetch } = useAuth()
     
     // State
     const product = ref(null)
@@ -357,6 +442,18 @@ export default {
       size: null,
       color: null
     })
+    const reviews = ref([])
+    const isReviewsLoading = ref(false)
+    const isReviewSubmitting = ref(false)
+    const reviewsLoadError = ref('')
+    const reviewError = ref('')
+    const reviewSuccess = ref('')
+    const reviewRating = ref(0)
+    const reviewComment = ref('')
+
+    const currentUserReview = computed(() => reviews.value.find(
+      review => String(review.user?._id || review.user) === String(user.value?._id)
+    ))
 
     // Computed properties
     const mainImage = computed(() => {
@@ -374,41 +471,97 @@ export default {
     })
 
     const currentStock = computed(() => {
-      if (!product.value?.variants) return product.value?.stock || 0
-      
+      if (!product.value?.variants?.length) {
+        return Number(product.value?.stock) || 0
+      }
+
       const matchingVariant = product.value.variants.find(v => 
         v.size === selectedVariant.value.size && v.color === selectedVariant.value.color
       )
-      
-      return matchingVariant?.stock || 0
+
+      return Number(matchingVariant?.stock) || 0
     })
 
     // Methods
+    const loadReviews = async () => {
+      if (!product.value) return
+
+      isReviewsLoading.value = true
+      reviewsLoadError.value = ''
+      try {
+        const data = await authFetch(`/products/${product.value._id}/reviews`)
+        reviews.value = data.reviews || []
+        const ownReview = reviews.value.find(
+          review => String(review.user?._id || review.user) === String(user.value?._id)
+        )
+        if (ownReview) {
+          reviewRating.value = ownReview.rating
+          reviewComment.value = ownReview.comment
+        } else {
+          reviewRating.value = 0
+          reviewComment.value = ''
+        }
+      } catch (error) {
+        console.error('Failed to load product reviews:', error)
+        reviewsLoadError.value = 'Customer reviews could not be loaded. Please try again later.'
+      } finally {
+        isReviewsLoading.value = false
+      }
+    }
+
+    const submitReview = async () => {
+      if (!product.value || !reviewRating.value || !reviewComment.value.trim()) return
+
+      isReviewSubmitting.value = true
+      reviewError.value = ''
+      reviewSuccess.value = ''
+
+      try {
+        const result = await authFetch(`/products/${product.value._id}/reviews`, {
+          method: 'POST',
+          body: JSON.stringify({
+            rating: reviewRating.value,
+            comment: reviewComment.value
+          })
+        })
+
+        reviews.value = [
+          result.review,
+          ...reviews.value.filter(review => review._id !== result.review._id)
+        ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        product.value = { ...product.value, ...result.product }
+        reviewSuccess.value = 'Your review has been submitted and cannot be changed.'
+      } catch (error) {
+        reviewError.value = error.message || 'Your review could not be saved.'
+      } finally {
+        isReviewSubmitting.value = false
+      }
+    }
+
+    const formatReviewDate = (date) => {
+      return date
+        ? new Date(date).toLocaleDateString('en-PH', { dateStyle: 'medium' })
+        : ''
+    }
+
     const loadProduct = async () => {
       try {
         isLoading.value = true
-        
+        product.value = null
+        relatedProducts.value = []
+        reviews.value = []
         const productId = route.params.id
-        
-        // Try to fetch from API first
-        try {
-          const apiProduct = await fetchProductById(productId)
-          if (apiProduct) {
-            product.value = {
-              ...apiProduct,
-              id: apiProduct._id || apiProduct.id
-            }
-          } else {
-            throw new Error('Product not found in API')
+        const apiProduct = await fetchProductById(productId)
+        if (apiProduct) {
+          product.value = {
+            ...apiProduct,
+            id: apiProduct._id || apiProduct.id
           }
-        } catch (apiError) {
-          console.log('Using static product data (API unavailable)')
-          // Fall back to static data
-          const numericId = parseInt(productId)
-          product.value = getProductById(numericId)
         }
         
         if (product.value) {
+          await loadReviews()
+
           // Set default variant selections
           if (availableSizes.value.length > 0) {
             selectedVariant.value.size = availableSizes.value[0]
@@ -417,9 +570,15 @@ export default {
             selectedVariant.value.color = availableColors.value[0]
           }
           
-          // Load related products (static for now)
-          const pid = product.value._id || product.value.id
-          relatedProducts.value = getRelatedProducts(typeof pid === 'number' ? pid : parseInt(pid) || 1)
+          const apiProducts = await fetchProducts()
+          const related = apiProducts
+            .filter(item => String(item._id) !== String(product.value._id))
+            .map(item => ({ ...item, id: item._id || item.id }))
+          const sameCategory = related.filter(item => item.category === product.value.category)
+          relatedProducts.value = [
+            ...sameCategory,
+            ...related.filter(item => item.category !== product.value.category)
+          ].slice(0, 4)
         }
         
       } catch (error) {
@@ -471,7 +630,7 @@ export default {
         await new Promise(resolve => setTimeout(resolve, 500))
         
         const success = addToCart(
-          product.value.id,
+          product.value,
           selectedVariant.value.size,
           selectedVariant.value.color,
           quantity.value
@@ -503,15 +662,6 @@ export default {
       return category ? category.name : categorySlug.replace('-', ' ')
     }
 
-    const formatBadgeText = (tag) => {
-      const badgeMap = {
-        'eco-friendly': 'Eco',
-        'handmade': 'Handmade',
-        'best-seller': 'Best Seller'
-      }
-      return badgeMap[tag] || tag
-    }
-
     // Watch for route changes
     watch(() => route.params.id, () => {
       loadProduct()
@@ -527,6 +677,16 @@ export default {
       relatedProducts,
       isLoading,
       isAddingToCart,
+      reviews,
+      isReviewsLoading,
+      isReviewSubmitting,
+      reviewsLoadError,
+      reviewError,
+      reviewSuccess,
+      reviewRating,
+      reviewComment,
+      isAuthenticated,
+      currentUserReview,
       currentImageIndex,
       quantity,
       selectedVariant,
@@ -544,9 +704,10 @@ export default {
       increaseQuantity,
       decreaseQuantity,
       handleAddToCart,
+      submitReview,
+      formatReviewDate,
       openImageModal,
       formatCategoryName,
-      formatBadgeText,
       formatCurrency
     }
   }
@@ -706,7 +867,7 @@ export default {
 .main-image {
   width: 100%;
   height: 500px;
-  object-fit: cover;
+  object-fit: contain;
   cursor: zoom-in;
 }
 
@@ -746,15 +907,6 @@ export default {
   transform: translateY(-50%) scale(1.1);
 }
 
-.product-badges {
-  position: absolute;
-  top: var(--space-4);
-  left: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
 .thumbnail-images {
   display: flex;
   gap: var(--space-3);
@@ -775,7 +927,7 @@ export default {
 .thumbnail-btn img {
   width: 80px;
   height: 80px;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 
@@ -981,6 +1133,186 @@ export default {
   margin-bottom: var(--space-8);
 }
 
+/* Customer Reviews */
+.reviews-section {
+  margin-bottom: var(--space-8);
+  padding: var(--space-8);
+  border: 1px solid var(--green-100);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, #fff, #f7faf7);
+}
+
+.reviews-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--green-100);
+}
+
+.reviews-eyebrow {
+  margin-bottom: var(--space-1);
+  color: var(--green-700);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reviews-heading h2 {
+  color: var(--green-900);
+  font-size: var(--text-2xl);
+}
+
+.reviews-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-medium);
+}
+
+.reviews-summary strong {
+  color: var(--green-800);
+  font-size: var(--text-2xl);
+}
+
+.reviews-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--space-8);
+  padding-top: var(--space-6);
+}
+
+.review-form,
+.review-sign-in,
+.review-submitted {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--green-100);
+  border-radius: var(--radius-lg);
+  background: #fff;
+}
+
+.review-form h3,
+.review-sign-in h3,
+.review-submitted h3 {
+  color: var(--green-900);
+  font-size: var(--text-lg);
+}
+
+.review-form-hint,
+.review-sign-in p,
+.review-submitted p {
+  color: var(--ink-medium);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.review-field-label {
+  margin-top: var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.review-form textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: var(--space-3);
+  border: 1px solid var(--green-200);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.review-form textarea:focus {
+  outline: 2px solid var(--green-400);
+  outline-offset: 1px;
+}
+
+.review-character-count {
+  align-self: flex-end;
+  color: var(--ink-light);
+  font-size: var(--text-xs);
+}
+
+.review-form .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.submitted-review-comment {
+  overflow-wrap: anywhere;
+}
+
+.review-message {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.review-message.error {
+  color: #b42318;
+}
+
+.review-message.success {
+  color: var(--green-700);
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reviews-empty {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  color: var(--ink-medium);
+  text-align: center;
+}
+
+.review-card {
+  padding: var(--space-4);
+  border: 1px solid var(--green-100);
+  border-radius: var(--radius-lg);
+  background: #fff;
+}
+
+.review-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.review-card-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.review-card-heading strong {
+  color: var(--green-900);
+}
+
+.review-card-heading span {
+  color: var(--ink-light);
+  font-size: var(--text-xs);
+}
+
+.review-card > p {
+  color: var(--ink-medium);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
 /* Related Products */
 .related-products {
   border-top: 1px solid var(--green-100);
@@ -1007,6 +1339,20 @@ export default {
 }
 
 @media (max-width: 768px) {
+  .reviews-section {
+    padding: var(--space-5);
+  }
+
+  .reviews-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .reviews-layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+
   .main-image {
     height: 400px;
   }
@@ -1047,11 +1393,6 @@ export default {
     height: 60px;
   }
   
-  .product-badges {
-    top: var(--space-2);
-    left: var(--space-2);
-  }
-  
   .image-nav-btn {
     width: 36px;
     height: 36px;
@@ -1063,6 +1404,15 @@ export default {
   
   .image-nav-next {
     right: var(--space-2);
+  }
+
+  .reviews-section {
+    padding: var(--space-3);
+  }
+
+  .review-form,
+  .review-sign-in {
+    padding: var(--space-3);
   }
 }
 </style>

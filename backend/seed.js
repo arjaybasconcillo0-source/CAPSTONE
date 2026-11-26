@@ -10,10 +10,10 @@ dotenv.config();
 // Categories data
 const categories = [
   { name: 'Bags', slug: 'bags', description: 'Handwoven bags from water lily fiber' },
-  { name: 'Baskets', slug: 'baskets', description: 'Beautiful storage and decorative baskets' },
+  { name: 'Shoulder Bags', slug: 'shoulder-bags', description: 'Handwoven shoulder bags made with natural water lily fiber' },
   { name: 'Home Decor', slug: 'home-decor', description: 'Eco-friendly home decoration items' },
-  { name: 'Coasters', slug: 'coasters', description: 'Handcrafted coasters for your home' },
-  { name: 'Placemats', slug: 'placemats', description: 'Natural fiber placemats' }
+  { name: 'Wallets', slug: 'wallets', description: 'Handwoven wallets made from natural water lily fiber' },
+  { name: 'Hats', slug: 'hats', description: 'Handwoven hats crafted from natural water lily fiber' }
 ];
 
 // Products data
@@ -22,7 +22,6 @@ const products = [
     name: "Artisan Water Lily Tote",
     price: 2450,
     category: "bags",
-    shortDesc: "Large handwoven tote perfect for daily use",
     description: "Expertly crafted from sustainable water lily fiber, this spacious tote combines functionality with eco-luxury. Features cotton lining and reinforced handles for durability. Each bag supports local artisan communities with fair trade practices.",
     rating: 4.8,
     reviewsCount: 127,
@@ -44,7 +43,6 @@ const products = [
     name: "Eco Crossbody Purse",
     price: 1850,
     category: "bags",
-    shortDesc: "Compact crossbody perfect for essentials",
     description: "Stylish and practical crossbody bag handwoven from water lily stems. Features an adjustable strap and secure zip closure. The natural texture and earthy tones complement any casual outfit.",
     rating: 4.6,
     reviewsCount: 89,
@@ -64,7 +62,6 @@ const products = [
     name: "Market Shopping Bag",
     price: 1650,
     category: "bags",
-    shortDesc: "Sturdy bag for groceries and market trips",
     description: "Strong and sustainable alternative to plastic bags. Handwoven with reinforced bottom and comfortable handles. Perfect for farmers markets, grocery shopping, or beach days.",
     rating: 4.9,
     reviewsCount: 203,
@@ -83,7 +80,6 @@ const products = [
     name: "Traditional Storage Basket",
     price: 3200,
     category: "baskets",
-    shortDesc: "Large multi-purpose storage basket",
     description: "Beautifully crafted storage basket perfect for organizing your home. Features a tight weave pattern that's both decorative and functional. Ideal for blankets, toys, or laundry.",
     rating: 4.7,
     reviewsCount: 156,
@@ -103,7 +99,6 @@ const products = [
     name: "Fruit Bowl Basket",
     price: 1450,
     category: "baskets",
-    shortDesc: "Elegant fruit bowl for kitchen display",
     description: "Display your fresh fruits in style with this handwoven basket. The open weave allows air circulation to keep produce fresh longer. A beautiful centerpiece for any kitchen or dining table.",
     rating: 4.5,
     reviewsCount: 78,
@@ -121,7 +116,6 @@ const products = [
     name: "Decorative Wall Art",
     price: 2800,
     category: "home-decor",
-    shortDesc: "Stunning wall piece for modern homes",
     description: "Transform your walls with this intricate water lily wall art. Each piece is uniquely handcrafted by skilled artisans. The natural fibers create beautiful shadows and textures that change throughout the day.",
     rating: 4.9,
     reviewsCount: 92,
@@ -138,11 +132,10 @@ const products = [
     stock: 23
   },
   {
-    name: "Natural Fiber Coaster Set",
+    name: "Handwoven Water Lily Wallet",
     price: 650,
-    category: "coasters",
-    shortDesc: "Set of 6 handwoven coasters",
-    description: "Protect your surfaces in style with these beautiful handwoven coasters. Each set includes 6 coasters made from sustainable water lily fiber. Heat-resistant and easy to clean.",
+    category: "wallets",
+    description: "Carry your everyday essentials in this compact wallet, handwoven from sustainable water lily fiber by local artisans.",
     rating: 4.7,
     reviewsCount: 245,
     materials: ["Water lily fiber", "Natural binding"],
@@ -151,27 +144,26 @@ const products = [
       "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80"
     ],
     variants: [
-      { size: 'Set of 6', color: 'Natural', stock: 50 },
-      { size: 'Set of 6', color: 'Multi-color', stock: 35 }
+      { size: 'One Size', color: 'Natural', stock: 50 },
+      { size: 'One Size', color: 'Earth Tones', stock: 35 }
     ],
     stock: 85
   },
   {
-    name: "Round Placemats Set",
+    name: "Handwoven Water Lily Hat",
     price: 1200,
-    category: "placemats",
-    shortDesc: "Set of 4 round placemats",
-    description: "Elevate your dining experience with these elegant round placemats. Handwoven from natural water lily fiber, they add a touch of artisan craftsmanship to every meal. Set includes 4 placemats.",
+    category: "hats",
+    description: "A lightweight handwoven hat made from natural water lily fiber, crafted by local artisans for a timeless look.",
     rating: 4.6,
     reviewsCount: 134,
     materials: ["Water lily fiber"],
-    tags: ["eco-friendly", "handmade", "dining"],
+    tags: ["eco-friendly", "handmade", "accessories"],
     images: [
       "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&q=80"
     ],
     variants: [
-      { size: 'Set of 4', color: 'Natural', stock: 40 },
-      { size: 'Set of 4', color: 'Earth Tones', stock: 25 }
+      { size: 'One Size', color: 'Natural', stock: 40 },
+      { size: 'One Size', color: 'Earth Tones', stock: 25 }
     ],
     stock: 65
   }
@@ -228,7 +220,7 @@ const seedDatabase = async () => {
     const sampleOrders = [];
     const statuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
     const paymentStatuses = ['pending', 'paid', 'paid', 'paid', 'paid']; // More paid for realistic data
-    const paymentMethods = ['cod', 'gcash', 'bank_transfer', 'credit_card'];
+    const paymentMethods = ['cod'];
 
     // Generate orders for the last 6 months
     for (let i = 0; i < 50; i++) {

@@ -20,12 +20,7 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Please add a category'],
-    enum: ['bags', 'baskets', 'home-decor', 'coasters', 'placemats']
-  },
-  shortDesc: {
-    type: String,
-    required: [true, 'Please add a short description'],
-    maxlength: 200
+    enum: ['bags', 'shoulder-bags', 'baskets', 'home-decor', 'wallets', 'hats']
   },
   description: {
     type: String,
@@ -71,9 +66,8 @@ const productSchema = new mongoose.Schema({
 });
 
 // Update timestamp on save
-productSchema.pre('save', function(next) {
+productSchema.pre('save', function() {
   this.updatedAt = Date.now();
-  next();
 });
 
 const Product = mongoose.model('Product', productSchema);

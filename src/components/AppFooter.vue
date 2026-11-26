@@ -7,7 +7,7 @@
         <div class="footer-section">
           <div class="footer-brand">
             <div class="footer-logo">
-              <span class="logo-icon">🪷</span>
+              <img class="logo-icon" src="../assets/elilysense-mark.png" alt="" aria-hidden="true">
               <div class="logo-text">
                 <span class="brand-name">Water Lily</span>
                 <span class="brand-sub">Handicrafts</span>
@@ -55,10 +55,10 @@
           <ul class="footer-links">
             <li><router-link to="/shop" class="footer-link">All Products</router-link></li>
             <li><router-link to="/shop?category=bags" class="footer-link">Bags</router-link></li>
-            <li><router-link to="/shop?category=baskets" class="footer-link">Baskets</router-link></li>
+            <li><router-link to="/shop?category=shoulder-bags" class="footer-link">Shoulder Bags</router-link></li>
             <li><router-link to="/shop?category=home-decor" class="footer-link">Home Decor</router-link></li>
-            <li><router-link to="/shop?category=coasters" class="footer-link">Coasters</router-link></li>
-            <li><router-link to="/shop?category=placemats" class="footer-link">Placemats</router-link></li>
+            <li><router-link to="/shop?category=wallets" class="footer-link">Wallets</router-link></li>
+            <li><router-link to="/shop?category=hats" class="footer-link">Hats</router-link></li>
           </ul>
         </div>
 
@@ -249,7 +249,11 @@ export default {
 }
 
 .footer-logo .logo-icon {
-  font-size: 1.75rem;
+  width: 2rem;
+  height: 2rem;
+  object-fit: cover;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .footer-logo .brand-name {

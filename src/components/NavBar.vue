@@ -9,7 +9,7 @@
           @click="closeSearch"
         >
           <div class="logo">
-            <span class="logo-icon">🪷</span>
+            <img class="logo-icon" src="../assets/elilysense-mark.png" alt="" aria-hidden="true">
             <div class="logo-text">
               <span class="brand-name">Water Lily</span>
               <span class="brand-sub">Handicrafts</span>
@@ -69,6 +69,10 @@
             <SearchIcon />
           </button>
 
+          <router-link to="/track-order" class="nav-button track-order-link">
+            Track Order
+          </router-link>
+
           <!-- Cart -->
           <router-link 
             to="/cart" 
@@ -90,6 +94,9 @@
           <!-- User Actions (Desktop) -->
           <div class="user-actions desktop-only">
             <template v-if="isAuthenticated">
+              <router-link to="/settings" class="nav-button settings-button">
+                Settings
+              </router-link>
               <router-link 
                 v-if="isAdmin" 
                 to="/admin" 
@@ -189,12 +196,12 @@
             Bags
           </router-link>
           <router-link 
-            to="/shop?category=baskets" 
+            to="/shop?category=shoulder-bags" 
             class="mobile-nav-link"
             @click="closeMobileMenu"
             role="menuitem"
           >
-            Baskets
+            Shoulder Bags
           </router-link>
           <router-link 
             to="/shop?category=home-decor" 
@@ -204,6 +211,14 @@
           >
             Home Decor
           </router-link>
+          <router-link
+            to="/track-order"
+            class="mobile-nav-link"
+            @click="closeMobileMenu"
+            role="menuitem"
+          >
+            Track Order
+          </router-link>
           
           <!-- Auth Links (Mobile) -->
           <div class="mobile-nav-divider"></div>
@@ -212,6 +227,14 @@
             <div class="mobile-user-info">
               Signed in as {{ userName }}
             </div>
+            <router-link
+              to="/settings"
+              class="mobile-nav-link"
+              @click="closeMobileMenu"
+              role="menuitem"
+            >
+              Settings
+            </router-link>
             <router-link 
               v-if="isAdmin"
               to="/admin" 
@@ -249,7 +272,7 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCart } from '../composables/useCart.js'
 import { useAuth } from '../composables/useAuth.js'
-import { products } from '../data/products.js'
+import { useProducts } from '../composables/useProducts.js'
 
 // Simple SVG Icons as inline components
 const SearchIcon = {
@@ -332,6 +355,8 @@ export default {
     const router = useRouter()
     const { cartCount } = useCart()
     const { isAuthenticated, isAdmin, userName, logout } = useAuth()
+    const { fetchProducts } = useProducts()
+    const availableProducts = ref([])
 
     // Handle logout
     const handleLogout = () => {
@@ -356,7 +381,7 @@ export default {
       const query = searchQuery.value.toLowerCase()
       const suggestions = new Set()
       
-      products.forEach(product => {
+      availableProducts.value.forEach(product => {
         // Add product names that match
         if (product.name.toLowerCase().includes(query)) {
           suggestions.add(product.name)
@@ -429,7 +454,8 @@ export default {
     }
 
     // Close mobile menus when clicking outside
-    onMounted(() => {
+    onMounted(async () => {
+      availableProducts.value = await fetchProducts()
       document.addEventListener('click', (e) => {
         if (!e.target.closest('.navbar')) {
           showMobileMenu.value = false
@@ -500,8 +526,11 @@ export default {
 }
 
 .logo-icon {
-  font-size: 2rem;
-  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  object-fit: cover;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .logo-text {
@@ -649,6 +678,14 @@ export default {
   outline-offset: 2px;
 }
 
+.track-order-link {
+  width: auto;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .cart-icon-wrapper {
   position: relative;
 }
@@ -745,7 +782,12 @@ export default {
   }
   
   .logo-icon {
-    font-size: 1.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .track-order-link {
+    display: none;
   }
 }
 
